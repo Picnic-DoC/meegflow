@@ -1752,10 +1752,26 @@ class MEEGFlowPipeline:
         """
         instance = step_config.get('instance', 'epochs')
         overwrite = step_config.get('overwrite', True)
+        processing = step_config.get('processing', None)
+        description = step_config.get('description', None)
+        datatype = step_config.get('datatype', None)
+        suffix = step_config.get('suffix', None)
+        extension = step_config.get('suffix', None)
 
         if instance not in data:
             raise ValueError(f"save_clean_instances step requires '{instance}' to be present in data (either 'raw' or 'epochs')")
-        
+
+        # Compute default suffixes if not specified otherwise
+        if suffix is None:
+            if instance == 'epochs':
+                suffix = 'epo'
+            elif instance == 'raw':
+                suffix = 'eeg'
+
+        # Compute extension if not expecified
+        if extension is None and instance in ['epochs', 'raw']:
+            suffix = '.fif'
+
         # Derivatives root for this pipeline
         deriv_root = self._get_derivatives_root(instance)
 
@@ -1764,12 +1780,12 @@ class MEEGFlowPipeline:
             task=data['task'],
             session=data.get('session', None),
             acquisition=data.get('acquisition', None),
-            datatype="eeg",
+            datatype=datatype,
             root=deriv_root,
-            suffix="epo",
-            extension=".fif",
-            processing="clean",
-            description="cleaned",
+            suffix=suffix,
+            extension=extension,
+            processing=processing,
+            description=description,
             check=False,
         )
 

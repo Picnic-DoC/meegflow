@@ -6,6 +6,7 @@ scipy>=1.11.0
 PyYAML>=6.0
 rich>=13.0.0
 scikit-learn>=1.8.0
+defusedxml>=0.7.1
 
 # Optional but recommended
 matplotlib>=3.7.0
