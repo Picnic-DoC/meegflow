@@ -1,4 +1,4 @@
-custom_steps_folder: /network/iss/cohen/data/Laouen/git/nice_preprocessing/custom_steps
+custom_steps_folder: /custom_steps
 
 pipeline:
 
@@ -11,9 +11,13 @@ pipeline:
     l_freq_order: 8
     h_freq: 45.0
     h_freq_order: 6
-  
+
   - name: notch_filter
     freqs: [50.0, 100.0]
+
+  - name: save_clean_instance
+    instance: raw
+    processing: 1filter
 
   - name: find_events
     get_events_from: stim_channel
@@ -36,6 +40,10 @@ pipeline:
       LSGD: 40   # Local Standard Global Deviant
       LDGD: 50   # Local Deviant Global Deviant
       LDGS: 60   # Local Deviant Global Standard
+
+  - name: save_clean_instance
+    instance: epochs
+    processing: 2epoch
 
   - name: find_bads_channels_threshold
     apply_on: ['epochs']
@@ -61,9 +69,17 @@ pipeline:
     zscore_thresh: 4
     max_iter: 4
 
+  - name: save_clean_instance
+    instance: epochs
+    processing: 3adaptive
+
   - name: reference
     instance: epochs
     ref_channels: average
+
+  - name: save_clean_instance
+    instance: epochs
+    processing: 4avgref
 
   - name: interpolate_bad_channels
     instance: epochs
@@ -75,6 +91,19 @@ pipeline:
 
   - name: save_clean_instance
     instance: epochs
+    processing: 5interpolate
+  
+  - name: resample
+    instance: epochs
+    sfreq: 250.0
+    npad: auto
+  
+  - name: save_clean_instance
+    instance: epochs
+    processing: 6resample
+
+  - name: save_clean_instance
+    instance: epochs  
 
   - name: generate_json_report
 

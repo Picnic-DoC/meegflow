@@ -4,7 +4,7 @@
 # Path to folder containing custom step files
 # For local use: absolute or relative path
 # For Docker: mount your local folder and use the container path
-custom_steps_folder: /path/to/your/custom_steps
+custom_steps_folder: /home/laouen.belloli/Documents/git/meegflow/configs
 
 # Pipeline steps execute in order
 # Mix custom and built-in steps as needed
@@ -24,23 +24,6 @@ pipeline:
   - name: bandpass_filter  # Built-in step
     l_freq: 0.5
     h_freq: 40.0
-  
-  # Mark specific channels as bad (custom step)
-  - name: mark_bad_channels_by_name  # Custom step
-    channels: ['T7', 'T8']  # Example: mark these as bad
-    instance: 'raw'
-  
-  # Find more bad channels using built-in detection
-  - name: find_bads_channels_threshold  # Built-in step
-    threshold: 5.0
-  
-  # Interpolate bad channels (built-in step)
-  - name: interpolate_bad_channels
-  
-  # Re-reference (built-in step)
-  - name: reference
-    ref_channels: average
-    instance: 'raw'
   
   # Find events (built-in step)
   - name: find_events
