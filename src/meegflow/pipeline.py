@@ -93,19 +93,15 @@ from __future__ import annotations
 import os
 os.environ["MPLBACKEND"] = "Agg"
 
-from itertools import product
 from pathlib import Path
 from typing import Union, Dict, Any, List, Callable, TYPE_CHECKING
-import json
 import mne
 from mne.utils import logger
 import numpy as np
-from mne_bids import BIDSPath, read_raw_bids, get_entity_vals
+from mne_bids import BIDSPath
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
 from . import adaptive_reject
 from collections import defaultdict
-from .utils import NpEncoder
-import matplotlib.pyplot as plt
 import importlib.util
 import sys
 import inspect
@@ -328,110 +324,6 @@ class MEEGFlowPipeline:
         
         return custom_steps
 
-    def _build_include_patterns(
-        self,
-        subjects: List[str] = None,
-        sessions: List[str] = None
-    ) -> Union[str, List[str]]:
-        """Build include_match patterns to narrow BIDS entity search.
-        
-        Parameters
-        ----------
-        subjects : list of str, optional
-            Known subject values to narrow the search.
-        sessions : list of str, optional
-            Known session values to narrow the search. If sessions were discovered
-            (not explicitly provided), patterns will include both session and 
-            non-session directories to handle subjects with and without sessions.
-        
-        Returns
-        -------
-        str or list of str
-            Pattern(s) to use with get_entity_vals include_match parameter.
-        """
-        if subjects:
-            subjects = [s if s is not None else '*' for s in subjects]
-        if sessions:
-            sessions = [s if s is not None else '*' for s in sessions]
-        
-        # If we have both subjects and sessions, create specific patterns
-        if subjects and sessions:
-            patterns = []
-            # Add patterns for subjects with sessions
-            for sub in subjects:
-                for ses in sessions:
-                    patterns.append(f'sub-{sub}/ses-{ses}/')
-            # Also add patterns without sessions to catch subjects that don't use sessions
-            # This is important because get_entity_vals only returns sessions that exist,
-            # so we need to also search for files without the session entity
-            for sub in subjects:
-                patterns.append(f'sub-{sub}/')
-            return patterns
-        
-        # If we only have subjects, create subject-specific patterns
-        if subjects:
-            return [f'sub-{sub}/' for sub in subjects]
-        
-        # If we only have sessions, we still need to search all subjects
-        # but can narrow to specific sessions
-        if sessions:
-            patterns = []
-            for ses in sessions:
-                patterns.append(f'sub-*/ses-{ses}/')
-            return patterns
-        
-        # Default: search all subject directories
-        return 'sub-*/'
-
-    def _get_entity_values(
-        self, 
-        entity_key: str, 
-        entity_value: any,
-        subjects: List[str] = None,
-        sessions: List[str] = None
-    ) -> List[Union[str, None]]:
-        """Get all unique values for a given BIDS entity in the dataset.
-        
-        Parameters
-        ----------
-        entity_key : str
-            The BIDS entity key (e.g., 'subject', 'task', 'session', 'acquisition').
-        entity_value : str | list of str | None
-            The entity value(s) to process. If None, discovers all existing values
-            from the BIDS dataset. If a string, returns it as a single-element list.
-            If a list, returns it as-is.
-        subjects : list of str, optional
-            Known subject values to narrow the search. Only used when entity_value is None.
-        sessions : list of str, optional
-            Known session values to narrow the search. Only used when entity_value is None.
-        
-        Returns
-        -------
-        list of str or [None]
-            List of entity values to process. Returns [None] if entity_value is None
-            and no values are found in the dataset.
-        """
-        if isinstance(entity_value, str):
-            return [entity_value]
-    
-        if isinstance(entity_value, list):
-            return entity_value
-
-        if entity_value is None:
-            # Build include_match pattern based on known entity values to narrow search
-            include_patterns = self._build_include_patterns(subjects, sessions)
-            
-            # Use get_entity_vals to find all existing values for this entity
-            all_values = get_entity_vals(
-                root=self.dataset_root,
-                entity_key=entity_key,
-                include_match=include_patterns
-            )
-            # Return the list of values, or [None] if no values found
-            return list(all_values) if all_values else [None]
-
-        raise ValueError(f"Invalid type for entity '{entity_key}': {type(entity_value)}")
-
     def _find_events_from_raw(self, raw, get_events_from='annotations', shortest_event=1, event_id='auto', stim_channel=None):
         """Extract events from a Raw object using annotations or a stim channel.
 
@@ -613,8 +505,12 @@ class MEEGFlowPipeline:
                 event_id=event_id
             )
             
-            start = inst.times[events[0,0]] - start_padding
-            end = inst.times[events[-1,0]] + end_padding
+            # events[:, 0] are absolute sample numbers (they include
+            # ``first_samp``); convert to seconds relative to the start of the
+            # recording, where ``inst.times[0] == 0``.
+            sfreq = inst.info['sfreq']
+            start = (events[0, 0] - inst.first_samp) / sfreq - start_padding
+            end = (events[-1, 0] - inst.first_samp) / sfreq + end_padding
 
             start = max(0, start)
             end = min(inst.times[-1], end)
@@ -1071,12 +967,17 @@ class MEEGFlowPipeline:
             n_jobs=n_jobs
         )
 
-        if resample_events and 'events' in data:
-            mne.events.resample_events(
-                data['events'],
-                data['events_sfreq'],
-                sfreq
-            ) 
+        if resample_events and data.get('events') is not None:
+            old_sfreq = data.get('events_sfreq')
+            if old_sfreq:
+                events = data['events'].copy()
+                # Scale the sample column to the new sampling frequency and
+                # store the result (the previous call discarded its return).
+                events[:, 0] = np.round(
+                    events[:, 0] * (sfreq / old_sfreq)
+                ).astype(events.dtype)
+                data['events'] = events
+                data['events_sfreq'] = sfreq
 
         # Store info for reporting
         data['preprocessing_steps'].append({
@@ -2024,46 +1925,11 @@ class MEEGFlowPipeline:
             path string.
         """
 
-        # JSON report
-        report = {
-            'subject': data['subject'],
-            'task': data['task'],
-            'session': data.get('session', None),
-            'acquisition': data.get('acquisition', None),
-            'preprocessing_steps': data.get('preprocessing_steps', []),
-        }
+        from .report import generate_json_report
 
-        if 'raw' in data:
-            report['raw'] = dict(
-                n_channels=data['raw'].info.get('nchan'),
-                sfreq=data['raw'].info.get('sfreq'),
-                n_times=data['raw'].n_times
-            )
-
-        # Derivatives root for this pipeline
-        deriv_root = self._get_derivatives_root("reports")
-
-        bids_path = BIDSPath(
-            subject=data['subject'],
-            task=data['task'],
-            session=data.get('session', None),
-            acquisition=data.get('acquisition', None),
-            datatype="eeg",
-            root=deriv_root,
-            suffix="report",
-            extension=".json",
-            processing="clean",
-            description="cleaned",
-            check=False,
+        data['json_report'] = generate_json_report(
+            data, step_config, self._get_derivatives_root("reports")
         )
-
-        # Ensure directory exists
-        bids_path.mkdir(exist_ok=True)
-
-        with open(bids_path.fpath, 'w') as f:
-            json.dump(report, f, indent=2, cls=NpEncoder)
-
-        data['json_report'] = str(bids_path)
         return data
 
     def _step_generate_html_report(self, data: Dict[str, Any], step_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -2089,329 +1955,14 @@ class MEEGFlowPipeline:
             Updated data dict with ``data['html_report']`` set to the output
             path string.
         """
-        from .report import (
-            collect_bad_channels_from_steps,
-            create_bad_channels_topoplot,
-            create_preprocessing_steps_table
+        from .report import generate_html_report
+
+        data['html_report'] = generate_html_report(
+            data,
+            step_config,
+            get_picks=self._get_picks,
+            deriv_root=self._get_derivatives_root("reports"),
         )
-
-        picks_params = step_config.get('picks', None)
-        excluded_channels = step_config.get('excluded_channels', None)
-        outlines = step_config.get('outlines', 'head')
-        compare_instances = step_config.get('compare_instances', [])
-        plot_raw_kwargs = step_config.get('plot_raw_kwargs', {})
-        plot_ica_kwargs = step_config.get('plot_ica_kwargs', {})
-        plot_events_kwargs = step_config.get('plot_events_kwargs', {})
-        plot_epochs_kwargs = step_config.get('plot_epochs_kwargs', {})
-        plot_evokeds_kwargs = step_config.get('plot_evokeds_kwargs', {})
-
-        if 'preprocessing_steps' not in data:
-            raise ValueError("generate_html_report requires 'preprocessing_steps' in data")
-        elif not isinstance(data['preprocessing_steps'], list):
-            raise ValueError("data['preprocessing_steps'] must be a list")
-
-        # Get info from epochs if available, otherwise from raw
-        inst = data['raw'] if 'raw' in data else data['epochs'] if 'epochs' in data else None
-        if inst is None:
-            raise ValueError("generate_html_report requires either 'raw' or 'epochs' in data")
-
-        # Compute picks for channel selection
-        picks = self._get_picks(inst.info, picks_params, excluded_channels)
-
-        preprocessing_steps = data['preprocessing_steps']
-
-        html_report = mne.Report(title=f'Preprocessing Report - Subject {data["subject"]}')
-
-        # Add bad channels topoplot section
-        bad_channels = collect_bad_channels_from_steps(preprocessing_steps)
-
-        # Create topoplot if we have bad channels and info
-        if len(bad_channels) > 0:
-            logger.info(f"Adding bad channels topoplot with {len(bad_channels)} bad channels")
-            fig = create_bad_channels_topoplot(inst.info, bad_channels, outlines=outlines)
-
-            if fig is not None:
-                # Add to report
-                html_report.add_figure(
-                    fig=fig,
-                    title='Bad Channels',
-                    caption=f'Topoplot showing {len(bad_channels)} bad channels marked with red crosses'
-                )
-                plt.close(fig)
-
-        # Add preprocessing steps table section
-        html_content = create_preprocessing_steps_table(data['preprocessing_steps'])
-
-        # ---------- Preprocessing steps ----------
-        if html_content is not None:
-            # Add the HTML table to the report
-            html_report.add_html(
-                html=html_content,
-                title='Preprocessing Steps',
-            )
-
-        # ---------- ICA ----------
-        if data.get('ica', None) is not None:
-
-            section = "ICA"
-
-            html_report.add_ica(
-                ica=data['ica'],
-                title='ICA Components',
-                inst=None,
-                **plot_ica_kwargs
-            )
-
-            ica_step = [step for step in preprocessing_steps if step['step'] == 'ica']
-            ica_step = ica_step[-1] if len(ica_step) > 0 else {}
-            eog_step_report = ica_step.get('eog_detection', {})
-            eog_idx = eog_step_report.get('eog_excluded_components', []) or []
-            eog_scores = eog_step_report.get('eog_scores', None)
-            ecg_step_report = ica_step.get('ecg_detection', {})
-            ecg_idx = ecg_step_report.get('ecg_excluded_components', [])
-            ecg_scores = ecg_step_report.get('ecg_scores', None)
-
-            if len(eog_idx) > 0:
-
-                if eog_scores is not None:
-                    scores = np.array(eog_scores, dtype=float)
-
-                    if scores.ndim == 1:
-                        scores = scores.reshape(-1, 1)  # Make it 2D for uniform processing
-
-                    # Heatmap (EOG channels x ICA components)
-                    fig = plt.figure()
-                    ax = fig.add_subplot(111)
-
-                    im = ax.imshow(scores, aspect="auto", origin="lower")
-
-                    n_components = scores.shape[1]
-
-                    # X axis: ICA components as discrete labels 1..N
-                    ax.set_xticks(np.arange(n_components))
-                    ax.set_xticklabels(np.arange(n_components))
-
-                    ax.set_xlabel("ICA component")
-                    ax.set_ylabel("EOG channel")
-
-                    eog_names = (
-                        eog_step_report.get("eog_channels_present", None)
-                        or eog_step_report.get("eog_channels_requested", None)
-                        or []
-                    )
-                    if isinstance(eog_names, list) and len(eog_names) == scores.shape[0]:
-                        ax.set_yticks(np.arange(len(eog_names)))
-                        ax.set_yticklabels(eog_names)
-
-                    ax.set_title("EOG scores (per EOG channel × ICA component)")
-
-                    fig.colorbar(im, ax=ax, shrink=0.8, label="EOG score")
-
-                    html_report.add_figure(
-                        fig=fig,
-                        title="ICA - EOG scores heatmap",
-                        section='ICA - EOG'
-                    )
-                    plt.close(fig)
-
-                    # Aggregate to 1 score per component for barplot
-                    scores_1d = np.max(np.abs(scores), axis=0)
-
-                    # Barplot (always 1D after aggregation if needed)
-                    fig1 = plt.figure()
-                    ax = fig1.add_subplot(111)
-                    ax.bar(np.arange(len(scores_1d)), scores_1d)
-                    ax.set_xlabel("ICA component")
-                    ax.set_ylabel("max |EOG score| across EOG channels" if (eog_scores is not None and np.array(eog_scores).ndim == 2) else "|EOG score|")
-                    ax.set_title(f"EOG scores (selected: {eog_idx})")
-                    html_report.add_figure(
-                        fig=fig1,
-                        title="ICA - EOG scores",
-                        section='ICA - EOG'
-                    )
-                    plt.close(fig1)
-            
-            if len(ecg_idx) > 0:
-
-                if ecg_scores is not None:
-                    scores = np.array(ecg_scores, dtype=float)
-
-                    if scores.ndim == 1:
-                        scores = scores.reshape(-1, 1)  # Make it 2D for uniform processing
-
-                    # Heatmap (ECG channels x ICA components)
-                    fig = plt.figure()
-                    ax = fig.add_subplot(111)
-
-                    im = ax.imshow(scores, aspect="auto", origin="lower")
-
-                    n_components = scores.shape[1]
-
-                    # X axis: ICA components as discrete labels 1..N
-                    ax.set_xticks(np.arange(n_components))
-                    ax.set_xticklabels(np.arange(n_components))
-
-                    ax.set_xlabel("ICA component")
-                    ax.set_ylabel("ECG channel")
-
-                    ecg_names = (
-                        ecg_step_report.get("ecg_channels_present", None)
-                        or ecg_step_report.get("ecg_channels_requested", None)
-                        or []
-                    )
-                    if isinstance(ecg_names, list) and len(ecg_names) == scores.shape[0]:
-                        ax.set_yticks(np.arange(len(ecg_names)))
-                        ax.set_yticklabels(ecg_names)
-
-                    ax.set_title("ECG scores (per ECG channel × ICA component)")
-                    fig.colorbar(im, ax=ax, shrink=0.8, label="ECG score")
-
-                    html_report.add_figure(
-                        fig=fig,
-                        title="ICA - ECG scores heatmap",
-                        section='ICA - EOG'
-                    )
-                    plt.close(fig)
-
-                    # Aggregate to 1 score per component for barplot
-                    scores_1d = np.max(np.abs(scores), axis=0)
-
-                    # Barplot (always 1D after aggregation if needed)
-                    fig1 = plt.figure()
-                    ax = fig1.add_subplot(111)
-                    ax.bar(np.arange(len(scores_1d)), scores_1d)
-                    ax.set_xlabel("ICA component")
-                    ax.set_ylabel("max |ECG score| across ECG channels" if (ecg_scores is not None and np.array(ecg_scores).ndim == 2) else "|ECG score|")
-                    ax.set_title(f"ECG scores (selected: {ecg_idx})")
-                    html_report.add_figure(
-                        fig=fig1,
-                        title="ICA - ECG scores",
-                        section='ICA - EOG'
-                    )
-                    plt.close(fig1)
-
-        # ---------- Compare instances preprocessing (full recording) ----------
-        for contrast in compare_instances:
-            inst_a_name = contrast['instance_a']['name']
-            inst_a_label = contrast['instance_a']['label']
-            inst_b_name = contrast['instance_b']['name']
-            inst_b_label = contrast['instance_b']['label']
-
-            if inst_a_name not in data or inst_b_name not in data:
-                raise ValueError(f"compare_instances step requires both '{inst_a_name}' and '{inst_b_name}' in data")
-
-            inst_a = data[inst_a_name]
-            inst_b = data[inst_b_name]
-
-            # Ensure channel alignment (same channel order)
-            ch_names_picks = self._get_picks(
-                inst.info,
-                picks_params,
-                excluded_channels
-            )
-            ch_names_a = sorted([inst_a.ch_names[pick] for pick in ch_names_picks])
-            ch_names_b = sorted([inst_b.ch_names[pick] for pick in ch_names_picks])
-            if set(ch_names_a) != set(ch_names_b):
-                raise ValueError(f"compare_instances step: channel mismatch between '{inst_a}' and '{inst_b}' after picking")
-
-            raw_b = inst_b.copy().pick(picks=ch_names_picks).reorder_channels(ch_names_a)
-            raw_a = inst_a.copy().pick(picks=ch_names_picks).reorder_channels(ch_names_b)
-
-            Xb = raw_b.get_data()
-            Xa = raw_a.get_data()
-            times = raw_a.times
-
-            # Metrics over full recording
-            gfp_b = np.std(Xb, axis=0)
-            gfp_a = np.std(Xa, axis=0)
-
-            mean_b = np.mean(Xb, axis=0)
-            mean_a = np.mean(Xa, axis=0)
-
-            diff_abs = np.mean(np.abs(Xb - Xa), axis=0)
-
-            fig, axes = plt.subplots(3, 1, figsize=(14, 8), sharex=True)
-
-            axes[0].plot(times, gfp_b, color='red', alpha=0.35, label=inst_b_label)
-            axes[0].plot(times, gfp_a, color='black', linewidth=1.0, label=inst_a_label)
-            axes[0].set_title('Global Field Power (full recording)')
-            axes[0].legend(loc='upper right')
-
-            axes[1].plot(times, mean_b, color='red', alpha=0.35, label=inst_b_label)
-            axes[1].plot(times, mean_a, color='black', linewidth=1.0, label=inst_a_label)
-            axes[1].set_title('Mean across channels (full recording)')
-            axes[0].legend(loc='upper right')
-
-            axes[2].plot(times, diff_abs, color='purple', linewidth=1.0)
-            axes[2].set_title(f'Mean absolute difference |{inst_a_label} - {inst_b_label}| (full recording)')
-            axes[2].set_xlabel('Time (s)')
-
-            fig.tight_layout()
-            html_report.add_figure(
-                fig=fig,
-                title=contrast['title'],
-                section='Contrasts'
-            )
-            plt.close(fig)
-
-        # ---------- Cleaned Raw report ----------
-        if data.get('raw', None) is not None:
-            html_report.add_raw(
-                raw=data['raw'].copy().pick(picks=picks),
-                title='Clean Raw Data',
-                **plot_raw_kwargs
-            )
-
-        # ---------- Events report ----------
-        if 'events' in data and data['events'] is not None:
-            html_report.add_events(
-                events=data['events'],
-                event_id=data.get('event_id', None),
-                sfreq=data['events_sfreq'],
-                title='Found Events',
-                **plot_events_kwargs
-            )
-
-        # ---------- Cleaned Epochs report ----------
-        if data.get('epochs', None) is not None:
-
-            epochs=data['epochs'].copy().pick(picks=picks)
-
-            html_report.add_epochs(
-                epochs=epochs,
-                title='Clean Epochs',
-                **plot_epochs_kwargs
-            )
-            
-            html_report.add_evokeds(
-                evokeds=epochs.average(by_event_type=True),
-                n_time_points=step_config.get('n_time_points', None),
-                **plot_evokeds_kwargs
-            )
-
-        # Derivatives root for this pipeline
-        deriv_root = self._get_derivatives_root("reports")
-
-        bids_path = BIDSPath(
-            subject=data['subject'],
-            task=data['task'],
-            session=data.get('session', None),
-            acquisition=data.get('acquisition', None),
-            datatype="eeg",
-            root=deriv_root,
-            suffix="report",
-            extension=".html",
-            processing="clean",
-            description="cleaned",
-            check=False,
-        )
-
-        # Ensure directory exists
-        bids_path.mkdir(exist_ok=True)
-
-        html_report.save(bids_path.fpath, overwrite=True, open_browser=False)
-
-        data['html_report'] = str(bids_path)
         return data
 
     def _process_single_recording(
@@ -2454,19 +2005,8 @@ class MEEGFlowPipeline:
         for path in paths:
             logger.info(f"  - {path}")
 
-        # Read all files
-        if io_backend == 'read_raw_bids':
-            data['all_raw'] = [read_raw_bids(bids_path=bp, verbose=True) for bp in paths]
-        else:
-            read_func = getattr(mne.io, io_backend, None)
-            if read_func is None:
-                raise ValueError(f"Unknown io_backend '{io_backend}' specified")
-            data['all_raw'] = [read_func(str(p), preload=True, verbose=True) for p in paths]
-
-        # Ensure data are loaded into memory for processing
-        for raw in data['all_raw']:
-            if not raw.preload:
-                raw.load_data()
+        # Read all files (loading is delegated to the reader)
+        data['all_raw'] = self.reader.read(paths, io_backend=io_backend)
 
         # Get pipeline steps from config
         pipeline_steps = self._get_pipeline_steps()
@@ -2609,7 +2149,8 @@ class MEEGFlowPipeline:
                     logger.error(f"Error processing {recording_name}: {str(exc)}")
                     subject_key = metadata.get('subject', list(metadata.values())[0] if metadata else 'unknown')
                     all_results.setdefault(subject_key, []).append({'error': str(exc)})
-                    raise exc
+                    # Continue processing the remaining recordings; the failure
+                    # is captured in all_results and summarised by the caller.
                 finally:
                     # Remove the step task after this recording is done
                     progress.remove_task(step_task_id)

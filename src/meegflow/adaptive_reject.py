@@ -151,7 +151,6 @@ def find_bads_channels_threshold(epochs, picks, reject, n_epochs_bad_ch=0.5):
     Returns:
         List of channel names identified as bad.
     """
-    n_channels = len(picks)
     data = epochs.get_data()
     n_epochs = data.shape[0]
 
@@ -163,12 +162,16 @@ def find_bads_channels_threshold(epochs, picks, reject, n_epochs_bad_ch=0.5):
     bad_ch_idx = np.ndarray((0,), dtype=int)
     for key, reject_thresh in reject.items():
         idx = np.array([x for x in ch_types_inds[key] if x in picks])
-        count_bad_epochs = np.zeros((n_channels), dtype=int)
+        if len(idx) == 0:
+            continue
+        count_bad_epochs = np.zeros(len(idx), dtype=int)
         for i_ch, channel in enumerate(data[idx]):
             deltas = channel.max(axis=1) - channel.min(axis=1)
             idx_deltas = np.where(np.greater(deltas, reject_thresh))[0]
             count_bad_epochs[i_ch] = idx_deltas.shape[0]
-        reject_bad_channels = np.where(count_bad_epochs > n_epochs_bad_ch)[0]
+        # count_bad_epochs is positional within idx; map back to absolute
+        # channel indices so the correct channel names are returned.
+        reject_bad_channels = idx[np.where(count_bad_epochs > n_epochs_bad_ch)[0]]
         logger.info('Reject by threshold %f on %s %d : bad_channels: %s' %
                     (reject_thresh, key.upper(), len(reject_bad_channels),
                      reject_bad_channels))
@@ -288,7 +291,10 @@ def find_bads_epochs_threshold(epochs, picks, reject, n_channels_bad_epoch=0.1):
         reject_bad_epochs = np.where(count_bad_chans > n_channels_bad_epoch)[0]
         logger.info('Reject by threshold %f on %s : bad_epochs: %s' %
                     (reject_thresh, key.upper(), reject_bad_epochs))
-    bad_epochs = np.unique(np.concatenate((bad_ep_idx, reject_bad_epochs)))
+        # Accumulate across all channel types, not just the last one.
+        bad_ep_idx = np.concatenate((bad_ep_idx, reject_bad_epochs))
+
+    bad_epochs = np.unique(bad_ep_idx)
 
     return bad_epochs
 

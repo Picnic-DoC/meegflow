@@ -24,15 +24,24 @@ def droplog_dataframe(epochs: mne.Epochs) -> pd.DataFrame:
         One row per (dropped epoch, rejection reason) pair. Empty if no epochs
         were dropped.
     """
-    event_type = _epoch_event_labels(epochs)
+    # `drop_log` has one entry per *original* epoch, while event labels are only
+    # available for the *surviving* epochs. Map the surviving labels onto their
+    # position in `drop_log` via `epochs.selection` so indices never go out of
+    # range. Dropped epochs have no recoverable event type (None).
+    surviving_labels = _epoch_event_labels(epochs)
+    label_by_droplog_ix = {
+        orig_ix: surviving_labels[kept_ix]
+        for kept_ix, orig_ix in enumerate(epochs.selection)
+    }
 
     rows = []
     for ei, reasons in enumerate(epochs.drop_log):
         # epochs.drop_log[ei] is a tuple/list of ’reasons’; empty means kept
         if not reasons:
             continue
+        event_type = label_by_droplog_ix.get(ei, None)
         for r in reasons:
-            rows.append({"epoch_ix": ei, "event_type": event_type[ei], "reason": r})
+            rows.append({"epoch_ix": ei, "event_type": event_type, "reason": r})
     return pd.DataFrame(rows)
 
 def plot_drops_by_reason_and_type(

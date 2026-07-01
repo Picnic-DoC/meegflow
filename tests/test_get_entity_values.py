@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for _get_entity_values function in MEEGFlowPipeline.
+Tests for the _get_entity_values method on BIDSReader.
 
 This test verifies that:
 1. _get_entity_values returns the input value when it's a string
@@ -58,7 +58,7 @@ def test_get_entity_values_with_string():
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', '01')
+            result = reader._get_entity_values('subject', '01')
             assert result == ['01'], f"Expected ['01'], got {result}"
             
         print("✓ _get_entity_values correctly handles string input")
@@ -78,7 +78,7 @@ def test_get_entity_values_with_list():
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', ['01', '02', '03'])
+            result = reader._get_entity_values('subject', ['01', '02', '03'])
             assert result == ['01', '02', '03'], f"Expected ['01', '02', '03'], got {result}"
             
         print("✓ _get_entity_values correctly handles list input")
@@ -98,7 +98,7 @@ def test_get_entity_values_with_none_returns_all_subjects():
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', None)
+            result = reader._get_entity_values('subject', None)
             assert isinstance(result, list), f"Expected list, got {type(result)}"
             assert set(result) == {'01', '02', '03'}, f"Expected {{'01', '02', '03'}}, got {set(result)}"
             
@@ -119,7 +119,7 @@ def test_get_entity_values_with_none_returns_all_tasks():
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('task', None)
+            result = reader._get_entity_values('task', None)
             assert isinstance(result, list), f"Expected list, got {type(result)}"
             assert set(result) == {'rest', 'task1'}, f"Expected {{'rest', 'task1'}}, got {set(result)}"
             
@@ -140,7 +140,7 @@ def test_get_entity_values_with_none_returns_all_sessions():
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('session', None)
+            result = reader._get_entity_values('session', None)
             assert isinstance(result, list), f"Expected list, got {type(result)}"
             assert set(result) == {'01', '02'}, f"Expected {{'01', '02'}}, got {set(result)}"
             
@@ -164,7 +164,7 @@ def test_get_entity_values_with_none_empty_dataset():
             reader = BIDSReader(bids_root)
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
-            result = pipeline._get_entity_values('subject', None)
+            result = reader._get_entity_values('subject', None)
             assert result == [None], f"Expected [None] for empty dataset, got {result}"
             
         print("✓ _get_entity_values correctly returns [None] for empty dataset")
@@ -185,7 +185,7 @@ def test_get_entity_values_invalid_type():
             pipeline = MEEGFlowPipeline(reader=reader, config={})
             
             try:
-                result = pipeline._get_entity_values('subject', 123)
+                result = reader._get_entity_values('subject', 123)
                 raise AssertionError("Expected ValueError for invalid type")
             except ValueError as e:
                 assert "Invalid type" in str(e), f"Expected 'Invalid type' in error message, got {e}"

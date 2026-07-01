@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 import re
 from itertools import product
-from mne_bids import BIDSPath, get_entity_vals
+import mne
+from mne_bids import BIDSPath, get_entity_vals, read_raw_bids
 from mne.utils import logger
 
 
@@ -61,6 +62,49 @@ class DatasetReader(ABC):
             - 'recording_name': string identifier for logging
         """
         pass
+
+    def read(
+        self,
+        paths: List[Any],
+        io_backend: str = 'read_raw_bids'
+    ) -> List[Any]:
+        """Load the raw files for a single recording into memory.
+
+        Parameters
+        ----------
+        paths : list of BIDSPath or Path
+            File paths belonging to one recording (as returned in the 'paths'
+            key of ``find_recordings``).
+        io_backend : str
+            How to read each file. ``'read_raw_bids'`` (default) uses
+            ``mne_bids.read_raw_bids``; any other value is resolved as a
+            function name on ``mne.io`` (e.g. ``'read_raw_eeglab'``).
+
+        Returns
+        -------
+        list of mne.io.Raw
+            Preloaded Raw objects, one per path.
+
+        Raises
+        ------
+        ValueError
+            If ``io_backend`` is not ``'read_raw_bids'`` and does not resolve to
+            a function on ``mne.io``.
+        """
+        if io_backend == 'read_raw_bids':
+            raws = [read_raw_bids(bids_path=bp, verbose=True) for bp in paths]
+        else:
+            read_func = getattr(mne.io, io_backend, None)
+            if read_func is None:
+                raise ValueError(f"Unknown io_backend '{io_backend}' specified")
+            raws = [read_func(str(p), preload=True, verbose=True) for p in paths]
+
+        # Ensure data are loaded into memory for processing
+        for raw in raws:
+            if not raw.preload:
+                raw.load_data()
+
+        return raws
 
 
 class BIDSReader(DatasetReader):
