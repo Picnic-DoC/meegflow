@@ -12,74 +12,66 @@ import yaml
 from pathlib import Path
 
 
+BAD_DETECTION_FILE = Path("src/meegflow/steps/bad_detection.py")
+
+
 def test_adaptive_reject_import():
-    """Test that adaptive_reject is imported in the pipeline."""
-    pipeline_file = Path("src/meegflow/pipeline.py")
-    assert pipeline_file.exists(), "Pipeline file does not exist"
-    
-    with open(pipeline_file, 'r') as f:
-        code = f.read()
-    
+    """Test that adaptive_reject is imported by the bad-detection steps."""
+    assert BAD_DETECTION_FILE.exists(), "steps/bad_detection.py does not exist"
+
+    code = BAD_DETECTION_FILE.read_text()
+
     assert "import adaptive_reject" in code, "adaptive_reject not imported"
     print("✓ adaptive_reject module is imported")
 
 
 def test_step_functions_registered():
     """Test that all adaptive autoreject step functions are registered."""
-    pipeline_file = Path("src/meegflow/pipeline.py")
-    with open(pipeline_file, 'r') as f:
-        code = f.read()
-    
+    from meegflow.steps import STEP_REGISTRY
+
     required_steps = [
         'find_bads_channels_threshold',
         'find_bads_channels_variance',
         'find_bads_channels_high_frequency',
         'find_bads_epochs_threshold'
     ]
-    
+
     for step in required_steps:
-        # Check if step is in the step_functions dictionary
-        expected = f"'{step}': self._step_{step}"
-        assert expected in code, f"Step {step} not registered in step_functions"
+        assert step in STEP_REGISTRY, f"Step {step} not registered"
         print(f"✓ Step '{step}' is registered")
 
 
 def test_step_methods_defined():
-    """Test that all adaptive autoreject step methods are defined."""
-    pipeline_file = Path("src/meegflow/pipeline.py")
-    with open(pipeline_file, 'r') as f:
-        code = f.read()
-    
-    required_methods = [
-        '_step_find_bads_channels_threshold',
-        '_step_find_bads_channels_variance',
-        '_step_find_bads_channels_high_frequency',
-        '_step_find_bads_epochs_threshold'
+    """Test that all adaptive autoreject step functions are defined."""
+    code = BAD_DETECTION_FILE.read_text()
+
+    required_functions = [
+        'find_bads_channels_threshold',
+        'find_bads_channels_variance',
+        'find_bads_channels_high_frequency',
+        'find_bads_epochs_threshold'
     ]
-    
-    for method in required_methods:
-        # Check if method is defined
-        pattern = f"def {method}(self, data: Dict[str, Any], step_config: Dict[str, Any])"
-        assert pattern in code, f"Method {method} not defined with correct signature"
-        print(f"✓ Method '{method}' is defined")
+
+    for func in required_functions:
+        pattern = f"def {func}(data, step_config)"
+        assert pattern in code, f"Step {func} not defined with correct signature"
+        print(f"✓ Step function '{func}' is defined")
 
 
 def test_step_methods_call_adaptive_reject():
-    """Test that step methods call the corresponding adaptive_reject functions."""
-    pipeline_file = Path("src/meegflow/pipeline.py")
-    with open(pipeline_file, 'r') as f:
-        code = f.read()
-    
+    """Test that step functions call the corresponding adaptive_reject functions."""
+    code = BAD_DETECTION_FILE.read_text()
+
     function_calls = [
-        ('_step_find_bads_channels_threshold', 'adaptive_reject.find_bads_channels_threshold'),
-        ('_step_find_bads_channels_variance', 'adaptive_reject.find_bads_channels_variance'),
-        ('_step_find_bads_channels_high_frequency', 'adaptive_reject.find_bads_channels_high_frequency'),
-        ('_step_find_bads_epochs_threshold', 'adaptive_reject.find_bads_epochs_threshold')
+        ('find_bads_channels_threshold', 'adaptive_reject.find_bads_channels_threshold'),
+        ('find_bads_channels_variance', 'adaptive_reject.find_bads_channels_variance'),
+        ('find_bads_channels_high_frequency', 'adaptive_reject.find_bads_channels_high_frequency'),
+        ('find_bads_epochs_threshold', 'adaptive_reject.find_bads_epochs_threshold')
     ]
-    
-    for method, call in function_calls:
-        assert call in code, f"Method {method} does not call {call}"
-        print(f"✓ Method '{method}' calls '{call}'")
+
+    for func, call in function_calls:
+        assert call in code, f"Step {func} does not call {call}"
+        print(f"✓ Step '{func}' calls '{call}'")
 
 
 def test_readme_documents_adaptive_reject():

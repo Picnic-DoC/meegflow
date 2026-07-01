@@ -39,7 +39,7 @@ class TestChunkInEpochStepName:
             "raw": _make_raw(),
             "preprocessing_steps": [],
         }
-        result = pipeline._step_chunk_in_epoch(data, {"duration": 1.0})
+        result = pipeline.run_step("chunk_in_epoch", data, {"duration": 1.0})
         recorded_names = [s["step"] for s in result["preprocessing_steps"]]
         assert "chunk_in_epoch" in recorded_names, (
             f"Expected 'chunk_in_epoch' in step names, got {recorded_names}"
@@ -56,13 +56,13 @@ class TestConcatenateRecordingsErrorMessage:
         pipeline = _make_pipeline()
         data = {"preprocessing_steps": []}  # no 'all_raw'
         with pytest.raises(ValueError, match="concatenate_recordings"):
-            pipeline._step_concatenate_recordings(data, {})
+            pipeline.run_step("concatenate_recordings", data, {})
 
     def test_error_message_does_not_mention_notch_filter(self):
         pipeline = _make_pipeline()
         data = {"preprocessing_steps": []}
         try:
-            pipeline._step_concatenate_recordings(data, {})
+            pipeline.run_step("concatenate_recordings", data, {})
         except ValueError as exc:
             assert "notch_filter" not in str(exc), (
                 f"Error message should not mention 'notch_filter': {exc}"

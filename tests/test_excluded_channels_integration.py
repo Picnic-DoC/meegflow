@@ -33,45 +33,47 @@ def test_excluded_channels_integration():
         info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
         raw = mne.io.RawArray(data, info)
         
-        # Create pipeline instance
+        # Create pipeline instance and a context exposing the picks helpers
         from meegflow.readers import BIDSReader
+        from meegflow.context import PipelineContext
         config = {'pipeline': []}
         reader = BIDSReader(repo_root / "test_data")
         pipeline = MEEGFlowPipeline(
             reader=reader,
             config=config
         )
-        
-        # Test _get_picks with excluded_channels
-        picks_all = pipeline._get_picks(raw.info, None, None)
+        ctx = PipelineContext({}, reader=reader)
+
+        # Test get_picks with excluded_channels
+        picks_all = ctx.get_picks(raw.info, None, None)
         assert len(picks_all) == 5, f"Expected 5 channels, got {len(picks_all)}"
-        print("✓ _get_picks returns all channels when no exclusion")
-        
-        picks_excluded = pipeline._get_picks(raw.info, None, ['Cz'])
+        print("✓ get_picks returns all channels when no exclusion")
+
+        picks_excluded = ctx.get_picks(raw.info, None, ['Cz'])
         assert len(picks_excluded) == 4, f"Expected 4 channels after excluding Cz, got {len(picks_excluded)}"
-        print("✓ _get_picks excludes specified channels")
-        
+        print("✓ get_picks excludes specified channels")
+
         # Verify Cz is not in excluded picks
         excluded_names = [raw.ch_names[p] for p in picks_excluded]
         assert 'Cz' not in excluded_names, "Cz should not be in excluded picks"
         print("✓ Cz correctly excluded from picks")
-        
+
         # Test _apply_excluded_channels directly
         picks = [0, 1, 2, 3, 4]  # All channels
-        filtered_picks = pipeline._apply_excluded_channels(raw.info, picks, ['Cz', 'Fz'])
+        filtered_picks = ctx._apply_excluded_channels(raw.info, picks, ['Cz', 'Fz'])
         assert len(filtered_picks) == 3, f"Expected 3 channels after excluding 2, got {len(filtered_picks)}"
         filtered_names = [raw.ch_names[p] for p in filtered_picks]
         assert 'Cz' not in filtered_names and 'Fz' not in filtered_names, \
             "Excluded channels should not be in filtered picks"
         print("✓ _apply_excluded_channels works correctly")
-        
+
         # Test with empty exclusion list
-        picks_empty = pipeline._apply_excluded_channels(raw.info, picks, [])
+        picks_empty = ctx._apply_excluded_channels(raw.info, picks, [])
         assert len(picks_empty) == 5, "Empty exclusion list should return all picks"
         print("✓ Empty exclusion list returns all picks")
-        
+
         # Test with None exclusion
-        picks_none = pipeline._apply_excluded_channels(raw.info, picks, None)
+        picks_none = ctx._apply_excluded_channels(raw.info, picks, None)
         assert len(picks_none) == 5, "None exclusion should return all picks"
         print("✓ None exclusion returns all picks")
         

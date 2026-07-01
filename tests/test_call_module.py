@@ -31,8 +31,9 @@ class TestCallModuleRegistered:
         assert "call_module" in pipeline.step_functions
 
     def test_maps_to_correct_method(self):
+        from meegflow.steps import STEP_REGISTRY
         pipeline = _make_pipeline()
-        assert pipeline.step_functions["call_module"] == pipeline._step_call_module
+        assert pipeline.step_functions["call_module"] is STEP_REGISTRY["call_module"]
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +46,7 @@ class TestCallModuleBasic:
         pipeline = _make_pipeline()
         data = _base_data()
         # dict(**kwargs) accepts arbitrary keyword args
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "builtins.dict",
             "var_name": "out",
             "name": "test",
@@ -57,7 +58,7 @@ class TestCallModuleBasic:
         """Call a positional-only function via args list."""
         pipeline = _make_pipeline()
         data = _base_data()
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "os.path.join",
             "var_name": "joined",
             "args": ["/tmp", "subdir", "file.txt"],
@@ -69,7 +70,7 @@ class TestCallModuleBasic:
         pipeline = _make_pipeline()
         data = _base_data()
         # sorted(iterable, reverse=True) — iterable is positional-only
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "builtins.sorted",
             "var_name": "out",
             "args": [[3, 1, 2]],
@@ -80,7 +81,7 @@ class TestCallModuleBasic:
     def test_result_stored_under_var_name(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": "filename",
             "args": ["/some/path/data.fif"],
@@ -92,7 +93,7 @@ class TestCallModuleBasic:
         pipeline = _make_pipeline()
         data = _base_data()
         keys_before = set(data.keys())
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": None,
             "args": ["/some/path/data.fif"],
@@ -103,7 +104,7 @@ class TestCallModuleBasic:
     def test_returns_data_dict(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": "x",
             "args": ["/a/b"],
@@ -121,7 +122,7 @@ class TestCallModuleDataRef:
         pipeline = _make_pipeline()
         data = _base_data()
         data["label"] = "hello"
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "builtins.dict",
             "var_name": "out",
             "the_label": "data__label",
@@ -133,7 +134,7 @@ class TestCallModuleDataRef:
         pipeline = _make_pipeline()
         data = _base_data()
         data["items"] = [3, 1, 2]
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "builtins.sorted",
             "var_name": "out",
             "args": ["data__items"],
@@ -145,7 +146,7 @@ class TestCallModuleDataRef:
         pipeline = _make_pipeline()
         data = _base_data()
         data["container"] = {"value": 42}
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "builtins.str",
             "var_name": "stringified",
             "args": ["data__container__value"],
@@ -157,7 +158,7 @@ class TestCallModuleDataRef:
         pipeline = _make_pipeline()
         data = _base_data()
         data["nums"] = [3, 1, 2]
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "builtins.sorted",
             "var_name": "out",
             "args": ["data__nums"],
@@ -181,7 +182,7 @@ class TestCallModuleDataRef:
         sys.modules["_test_capture"] = MagicMock()
         sys.modules["_test_capture"].capture = capture
 
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "_test_capture.capture",
             "var_name": None,
             "thing": "data__obj",
@@ -197,13 +198,13 @@ class TestCallModuleErrors:
     def test_missing_module_key_raises(self):
         pipeline = _make_pipeline()
         with pytest.raises(ValueError, match="module"):
-            pipeline._step_call_module(_base_data(), {"var_name": "x"})
+            pipeline.run_step("call_module", _base_data(), {"var_name": "x"})
 
     def test_bad_data_path_raises_value_error(self):
         pipeline = _make_pipeline()
         data = _base_data()
         with pytest.raises(ValueError, match="data__missing_key"):
-            pipeline._step_call_module(data, {
+            pipeline.run_step("call_module", data, {
                 "module": "builtins.str",
                 "var_name": "x",
                 "object": "data__missing_key",
@@ -214,7 +215,7 @@ class TestCallModuleErrors:
         data = _base_data()
         data["top"] = {"exists": 1}
         with pytest.raises(ValueError, match="data__top__missing"):
-            pipeline._step_call_module(data, {
+            pipeline.run_step("call_module", data, {
                 "module": "builtins.str",
                 "var_name": "x",
                 "object": "data__top__missing",
@@ -223,7 +224,7 @@ class TestCallModuleErrors:
     def test_invalid_module_path_raises(self):
         pipeline = _make_pipeline()
         with pytest.raises(Exception):
-            pipeline._step_call_module(_base_data(), {
+            pipeline.run_step("call_module", _base_data(), {
                 "module": "nonexistent_package.some_function",
                 "var_name": "x",
             })
@@ -237,7 +238,7 @@ class TestCallModuleStepRecording:
     def test_step_appended(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": "x",
             "p": "/a/b",
@@ -247,7 +248,7 @@ class TestCallModuleStepRecording:
     def test_step_name_is_call_module(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": "x",
             "p": "/a/b",
@@ -257,7 +258,7 @@ class TestCallModuleStepRecording:
     def test_module_recorded(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": "x",
             "p": "/a/b",
@@ -267,7 +268,7 @@ class TestCallModuleStepRecording:
     def test_var_name_recorded(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": "my_result",
             "p": "/a/b",
@@ -279,7 +280,7 @@ class TestCallModuleStepRecording:
         pipeline = _make_pipeline()
         data = _base_data()
         data["nums"] = [1, 2, 3]
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "builtins.sorted",
             "var_name": "out",
             "args": ["data__nums"],
@@ -293,7 +294,7 @@ class TestCallModuleStepRecording:
     def test_module_and_var_name_not_in_kwargs(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "os.path.basename",
             "var_name": "x",
             "p": "/a/b",
@@ -306,7 +307,7 @@ class TestCallModuleStepRecording:
         pipeline = _make_pipeline()
         data = _base_data()
         data["container"] = {"items": [3, 1, 2]}
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "builtins.dict",
             "var_name": "out",
             "x": 1,
@@ -319,7 +320,7 @@ class TestCallModuleStepRecording:
         pipeline = _make_pipeline()
         data = _base_data()
         data["my_list"] = [3, 1, 2]
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "sort",
             "target": "data__my_list",
             "var_name": None,
@@ -329,7 +330,7 @@ class TestCallModuleStepRecording:
     def test_unpack_as_recorded_in_step(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "builtins.divmod",
             "unpack_as": ["quotient", "remainder"],
             "args": [10, 3],
@@ -347,7 +348,7 @@ class TestCallModuleTarget:
         pipeline = _make_pipeline()
         data = _base_data()
         data["my_list"] = [3, 1, 2]
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "sort",
             "target": "data__my_list",
             "var_name": None,
@@ -359,7 +360,7 @@ class TestCallModuleTarget:
         pipeline = _make_pipeline()
         data = _base_data()
         data["my_str"] = "hello world"
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "upper",
             "target": "data__my_str",
             "var_name": "uppercased",
@@ -371,7 +372,7 @@ class TestCallModuleTarget:
         pipeline = _make_pipeline()
         data = _base_data()
         data["my_list"] = [3, 1, 2]
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "sort",
             "target": "data__my_list",
             "var_name": None,
@@ -385,7 +386,7 @@ class TestCallModuleTarget:
         data = _base_data()
         data["base"] = "hello"
         data["suffix"] = " world"
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "__add__",
             "target": "data__base",
             "var_name": "combined",
@@ -397,7 +398,7 @@ class TestCallModuleTarget:
         pipeline = _make_pipeline()
         data = _base_data()
         with pytest.raises(ValueError, match="data__missing"):
-            pipeline._step_call_module(data, {
+            pipeline.run_step("call_module", data, {
                 "module": "upper",
                 "target": "data__missing",
                 "var_name": None,
@@ -415,12 +416,12 @@ class TestCallModuleTarget:
         data = _base_data()
         data["raw"] = raw
 
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "mne.channels.make_standard_montage",
             "var_name": "montage",
             "kind": "standard_1020",
         })
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "set_montage",
             "target": "data__raw",
             "var_name": None,
@@ -439,7 +440,7 @@ class TestCallModuleUnpackAs:
     def test_tuple_unpacked_into_separate_keys(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "builtins.divmod",
             "unpack_as": ["quotient", "remainder"],
             "args": [10, 3],
@@ -452,7 +453,7 @@ class TestCallModuleUnpackAs:
         pipeline = _make_pipeline()
         data = _base_data()
         with pytest.raises(ValueError, match="mutually exclusive"):
-            pipeline._step_call_module(data, {
+            pipeline.run_step("call_module", data, {
                 "module": "builtins.divmod",
                 "var_name": "result",
                 "unpack_as": ["q", "r"],
@@ -463,7 +464,7 @@ class TestCallModuleUnpackAs:
         """Fewer names than returned values stores only the first N items (zip semantics)."""
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "builtins.divmod",
             "unpack_as": ["quotient"],
             "args": [10, 3],
@@ -474,7 +475,7 @@ class TestCallModuleUnpackAs:
     def test_unpack_does_not_store_under_var_name(self):
         pipeline = _make_pipeline()
         data = _base_data()
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "builtins.divmod",
             "unpack_as": ["q", "r"],
             "args": [10, 3],
@@ -495,7 +496,7 @@ class TestCallModuleUnpackAs:
         data = _base_data()
         data["raw"] = raw
 
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "mne.events_from_annotations",
             "unpack_as": ["events", "event_id"],
             "args": ["data__raw"],
@@ -516,7 +517,7 @@ class TestCallModuleMNE:
         import mne
         pipeline = _make_pipeline()
         data = _base_data()
-        result = pipeline._step_call_module(data, {
+        result = pipeline.run_step("call_module", data, {
             "module": "mne.channels.make_standard_montage",
             "var_name": "montage",
             "kind": "standard_1020",
@@ -537,7 +538,7 @@ class TestCallModuleMNE:
         data = _base_data()
         data["raw"] = raw
 
-        pipeline._step_call_module(data, {
+        pipeline.run_step("call_module", data, {
             "module": "mne.channels.make_standard_montage",
             "var_name": "montage",
             "kind": "standard_1020",

@@ -88,7 +88,7 @@ def test_find_flat_channels_basic():
             'threshold': 1e-12  # Default threshold
         }
         
-        result = pipeline._step_find_flat_channels(data, step_config)
+        result = pipeline.run_step("find_flat_channels", data, step_config)
         
         # Check that flat channels were detected
         detected_flat = result['preprocessing_steps'][-1]['bad_channels']
@@ -148,7 +148,7 @@ def test_find_flat_channels_with_custom_threshold():
             'threshold': 1e-9  # Higher threshold
         }
         
-        result = pipeline._step_find_flat_channels(data, step_config)
+        result = pipeline.run_step("find_flat_channels", data, step_config)
         detected_flat = result['preprocessing_steps'][-1]['bad_channels']
         
         print(f"  With high threshold (1e-9): {len(detected_flat)} flat channels detected")
@@ -167,7 +167,7 @@ def test_find_flat_channels_with_custom_threshold():
             'threshold': 1e-15  # Very low threshold
         }
         
-        result2 = pipeline._step_find_flat_channels(data2, step_config2)
+        result2 = pipeline.run_step("find_flat_channels", data2, step_config2)
         detected_flat2 = result2['preprocessing_steps'][-1]['bad_channels']
         
         print(f"  With low threshold (1e-15): {len(detected_flat2)} flat channels detected")
@@ -218,7 +218,7 @@ def test_find_flat_channels_no_flat():
         
         step_config = {'threshold': 1e-12}
         
-        result = pipeline._step_find_flat_channels(data_dict, step_config)
+        result = pipeline.run_step("find_flat_channels", data_dict, step_config)
         detected_flat = result['preprocessing_steps'][-1]['bad_channels']
         
         print(f"  Detected flat channels: {detected_flat}")
@@ -269,7 +269,7 @@ def test_find_flat_channels_all_flat():
         
         step_config = {'threshold': 1e-12}
         
-        result = pipeline._step_find_flat_channels(data_dict, step_config)
+        result = pipeline.run_step("find_flat_channels", data_dict, step_config)
         detected_flat = result['preprocessing_steps'][-1]['bad_channels']
         
         print(f"  Detected flat channels: {detected_flat}")
@@ -313,7 +313,7 @@ def test_find_flat_channels_with_excluded_channels():
             'excluded_channels': excluded
         }
         
-        result = pipeline._step_find_flat_channels(data, step_config)
+        result = pipeline.run_step("find_flat_channels", data, step_config)
         detected_flat = result['preprocessing_steps'][-1]['bad_channels']
         
         print(f"  Excluded channels: {excluded}")
@@ -379,7 +379,7 @@ def test_find_flat_channels_with_picks():
             'picks': ['eeg']
         }
         
-        result = pipeline._step_find_flat_channels(data_dict, step_config)
+        result = pipeline.run_step("find_flat_channels", data_dict, step_config)
         detected_flat = result['preprocessing_steps'][-1]['bad_channels']
         
         print(f"  Detected flat channels (EEG only): {detected_flat}")
@@ -425,7 +425,7 @@ def test_find_flat_channels_no_duplicate_bads():
         
         step_config = {'threshold': 1e-12}
         
-        result = pipeline._step_find_flat_channels(data, step_config)
+        result = pipeline.run_step("find_flat_channels", data, step_config)
         
         # Check that EEG002 appears only once in bads
         bads_count = result['raw'].info['bads'].count('EEG002')
@@ -464,7 +464,7 @@ def test_find_flat_channels_missing_raw():
         step_config = {'threshold': 1e-12}
         
         try:
-            pipeline._step_find_flat_channels(data, step_config)
+            pipeline.run_step("find_flat_channels", data, step_config)
             print("  ✗ Should have raised ValueError")
             return False
         except ValueError as e:

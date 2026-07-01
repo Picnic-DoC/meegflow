@@ -48,41 +48,36 @@ def test_pipeline_has_required_classes():
 
 
 def test_pipeline_has_required_methods():
-    """Test that the pipeline class has required methods."""
+    """Test that the pipeline exposes its orchestration methods."""
     pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
-    
-    # Check for auxiliary step functions (new modular design)
-    required_methods = [
-        "_step_strip_recording",
-        "_step_concatenate_recordings",
-        "_step_set_montage",
-        "_step_drop_unused_channels",
-        "_step_bandpass_filter",
-        "_step_notch_filter",
-        "_step_resample",
-        "_step_reference",
-        "_step_interpolate_bad_channels",
-        "_step_drop_bad_channels",
-        "_step_ica",
-        "_step_find_events",
-        "_step_epoch",
-        "_step_chunk_in_epoch",
-        "_step_find_flat_channels",
-        "_step_find_bads_channels_threshold",
-        "_step_find_bads_channels_variance",
-        "_step_find_bads_channels_high_frequency",
-        "_step_find_bads_epochs_threshold",
-        "_step_save_clean_instance",
-        "_step_generate_json_report",
-        "_step_generate_html_report",
-        "run_pipeline",
-    ]
-    
-    for method in required_methods:
+
+    # Orchestration methods remain on the pipeline class.
+    for method in ["run_pipeline", "run_step", "_load_custom_steps",
+                   "_get_pipeline_steps", "_process_single_recording"]:
         assert f"def {method}" in code, f"Method {method} not found"
         print(f"✓ Method {method} found")
+
+
+def test_all_builtin_steps_registered():
+    """Every built-in step is registered in the steps package registry."""
+    from meegflow.steps import STEP_REGISTRY
+
+    required_steps = [
+        "strip_recording", "concatenate_recordings", "copy_instance",
+        "call_module", "set_montage", "drop_unused_channels",
+        "bandpass_filter", "notch_filter", "resample", "reference",
+        "interpolate_bad_channels", "drop_bad_channels", "ica",
+        "find_events", "epoch", "chunk_in_epoch", "find_flat_channels",
+        "find_bads_channels_threshold", "find_bads_channels_variance",
+        "find_bads_channels_high_frequency", "find_bads_epochs_threshold",
+        "save_clean_instance", "generate_json_report", "generate_html_report",
+    ]
+    for step in required_steps:
+        assert step in STEP_REGISTRY, f"Step {step} not registered"
+        assert callable(STEP_REGISTRY[step]), f"Step {step} is not callable"
+        print(f"✓ Step {step} registered")
 
 
 def test_config_example_valid_yaml():

@@ -81,7 +81,7 @@ def test_bad_channels_topoplot_generation():
         }
         
         # Call the HTML report generation step
-        result = pipeline._step_generate_html_report(data, {})
+        result = pipeline.run_step("generate_html_report", data, {})
         
         # Verify HTML report was created
         assert 'html_report' in result
@@ -146,7 +146,7 @@ def test_preprocessing_steps_table_generation():
         }
         
         # Call the HTML report generation step
-        result = pipeline._step_generate_html_report(data, {})
+        result = pipeline.run_step("generate_html_report", data, {})
         
         # Verify HTML report was created
         assert 'html_report' in result
@@ -204,7 +204,7 @@ def test_html_report_without_bad_channels():
         }
         
         # Call the HTML report generation step (should not fail)
-        result = pipeline._step_generate_html_report(data, {})
+        result = pipeline.run_step("generate_html_report", data, {})
         
         # Verify HTML report was created
         assert 'html_report' in result
