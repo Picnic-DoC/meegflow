@@ -36,35 +36,13 @@ class PipelineContext(MutableMapping):
     def __contains__(self, key): return key in self.data
 
     # ------------------------------------------------------------------ #
-    # Provenance / validation helpers                                    #
-    # ------------------------------------------------------------------ #
-    def record(self, step: str, **params) -> None:
-        """Append a provenance entry to ``data['preprocessing_steps']``."""
-        self.data.setdefault('preprocessing_steps', []).append({'step': step, **params})
-
-    def require(self, *keys: str) -> None:
-        """Raise ``ValueError`` if any of ``keys`` is absent from the context."""
-        missing = [k for k in keys if k not in self.data]
-        if missing:
-            raise ValueError(f"Required data not present in context: {missing}")
-
-    # ------------------------------------------------------------------ #
     # Services (ported verbatim from MEEGFlowPipeline)                   #
     # ------------------------------------------------------------------ #
 
     @property
     def dataset_root(self) -> Path:
-        """Get the dataset root path from the reader.
-        
-        Returns the reader's root directory, which may be bids_root or data_root
-        depending on the reader type.
-        """
-        if hasattr(self.reader, 'bids_root'):
-            return self.reader.bids_root
-        elif hasattr(self.reader, 'data_root'):
-            return self.reader.data_root
-        else:
-            raise AttributeError("Reader does not have a bids_root or data_root attribute")
+        """Get the dataset root path from the reader."""
+        return self.reader.root
 
     def derivatives_root(self, subdir: str = "") -> Path:
         """Get the derivatives root directory.

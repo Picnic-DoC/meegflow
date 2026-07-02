@@ -153,17 +153,8 @@ class MEEGFlowPipeline:
 
     @property
     def dataset_root(self) -> Path:
-        """Get the dataset root path from the reader.
-        
-        Returns the reader's root directory, which may be bids_root or data_root
-        depending on the reader type.
-        """
-        if hasattr(self.reader, 'bids_root'):
-            return self.reader.bids_root
-        elif hasattr(self.reader, 'data_root'):
-            return self.reader.data_root
-        else:
-            raise AttributeError("Reader does not have a bids_root or data_root attribute")
+        """Get the dataset root path from the reader."""
+        return self.reader.root
 
     def run_step(
         self,

@@ -1,5 +1,4 @@
 import mne
-from mne.utils import logger
 from .registry import register
 from ._helpers import find_events_from_raw
 

@@ -8,6 +8,7 @@ from . import (  # noqa: F401  (imported for their registration side effects)
     channels,
     filtering,
     transforms,
+    ica,
     bad_detection,
     epoching,
     output,

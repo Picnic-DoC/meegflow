@@ -1,8 +1,7 @@
 import numpy as np
 import mne
-from mne.utils import logger
 from .registry import register
-from .. import adaptive_reject
+from . import adaptive_reject
 
 
 @register("find_flat_channels")

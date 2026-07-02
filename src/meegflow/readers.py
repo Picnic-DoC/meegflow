@@ -21,11 +21,22 @@ from mne.utils import logger
 
 class DatasetReader(ABC):
     """Abstract base class for dataset readers.
-    
+
     A reader is responsible for discovering data files based on specified criteria
     and returning them in a format the pipeline can process.
     """
-    
+
+    @property
+    @abstractmethod
+    def root(self) -> Path:
+        """Root directory of the dataset (e.g. BIDS root or glob root).
+
+        Standardizes access to the dataset location across reader
+        implementations, so callers don't need to know whether a given
+        reader calls its root ``bids_root`` or ``data_root``.
+        """
+        pass
+
     @abstractmethod
     def find_recordings(
         self,
@@ -121,7 +132,12 @@ class BIDSReader(DatasetReader):
     
     def __init__(self, bids_root: Union[str, Path]):
         self.bids_root = Path(bids_root)
-        
+
+    @property
+    def root(self) -> Path:
+        return self.bids_root
+
+
     def _build_include_patterns(
         self,
         subjects: Optional[List[str]] = None,
@@ -338,12 +354,16 @@ class GlobReader(DatasetReader):
     def __init__(self, data_root: Union[str, Path], pattern: str):
         self.data_root = Path(data_root)
         self.pattern = pattern
-        
+
         # Parse the pattern to extract variable names and create glob pattern
         self.variable_names = self._extract_variable_names(pattern)
         self.glob_pattern = self._create_glob_pattern(pattern)
         self.regex_pattern = self._create_regex_pattern(pattern)
-        
+
+    @property
+    def root(self) -> Path:
+        return self.data_root
+
     def _extract_variable_names(self, pattern: str) -> List[str]:
         """Extract variable names from pattern like {subject}, {task}, etc."""
         return re.findall(r'\{(\w+)\}', pattern)
