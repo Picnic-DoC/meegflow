@@ -1,0 +1,58 @@
+# Integration fixture: decoding_csp_eeg, sequential (single-process) backend.
+#
+# Pipeline steps copied verbatim from the known-good config at
+# /home/laouen.belloli/Documents/git/meegflow-examples/examples/decoding_csp_eeg/config.yaml
+# Used by tests/test_execution_integration_real_data.py.
+#
+# Dataset: /home/laouen.belloli/Documents/git/meegflow-examples/examples/decoding_csp_eeg/bids
+#
+# NOTE on task label: the source config.yaml's header comment says
+# '--tasks motorimagery', but that comment is stale -- the actual files on
+# disk are named 'sub-001_task-eegbci_run-XX_...', i.e. the real task label
+# is 'eegbci'. Run with:
+#   --subjects 001 002 --tasks eegbci --extension .vhdr
+
+execution:
+  backend: sequential
+
+pipeline:
+
+  # ── Lift Raw out of `all_raw` (required: pipeline reads into a list) ────
+  - name: concatenate_recordings
+
+  # ── Band-pass 7-30 Hz (IIR Butterworth — MEEGFlow's bandpass_filter) ────
+  # The MNE example uses FIR firwin; MEEGFlow's built-in filter is IIR.
+  # The 7-30 Hz motor-rhythm band is the same; expect a small accuracy drift.
+  - name: bandpass_filter
+    picks: ["eeg"]
+    l_freq: 7.0
+    h_freq: 30.0
+
+  # ── Average reference, with projection ──────────────────────────────────
+  - name: reference
+    instance: raw
+    ref_channels: average
+
+  # ── Events from annotations (renamed in prepare_raw.py) ─────────────────
+  - name: find_events
+    get_events_from: annotations
+    event_id:
+      T1: 2
+      T2: 3
+
+  # ── Epoch -1 to 4 s, no baseline, no reject (match the MNE example) ─────
+  - name: epoch
+    tmin: -1.0
+    tmax: 4.0
+    baseline: null
+
+  # ── Persist epochs + reports (meegflow >= 0.1.9 save_clean_instance) ────
+  - name: save_clean_instance
+    instance: epochs
+    datatype: eeg
+    processing: clean
+    description: cleaned
+    format: fif
+
+  - name: generate_json_report
+  - name: generate_html_report
