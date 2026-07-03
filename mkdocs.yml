@@ -70,8 +70,10 @@ nav:
       - Python API: usage/api.md
       - Configuration Reference: usage/configuration.md
       - Readers: usage/readers.md
+      - Parallel Execution: usage/parallel-execution.md
   - API Reference:
       - Pipeline: api/pipeline.md
+      - Execution: api/execution.md
       - Readers: api/readers.md
       - CLI: api/cli.md
       - Report: api/report.md
