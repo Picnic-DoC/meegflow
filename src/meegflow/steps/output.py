@@ -50,7 +50,7 @@ def save_clean_instance(data, step_config):
 
     # Auto-detect format
     if fmt is None:
-        fmt = 'fif' if isinstance(obj, (mne.BaseRaw, mne.BaseEpochs)) else 'pickle'
+        fmt = 'fif' if isinstance(obj, (mne.io.BaseRaw, mne.BaseEpochs)) else 'pickle'
 
     if fmt not in _SAVERS:
         raise ValueError(f"Unknown format '{fmt}'. Choose from: {list(_SAVERS)}, or pass a callable.")
