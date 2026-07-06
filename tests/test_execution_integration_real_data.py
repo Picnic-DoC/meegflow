@@ -17,9 +17,13 @@ by accident:
    one it was authored on (or a partial checkout with only one of the two
    datasets present).
 
-Datasets (both external to this repo, not created by this test):
-- ssvep-example-data:  /home/laouen.belloli/Documents/data/ssvep/ssvep-example-data
-- decoding_csp_eeg:     /home/laouen.belloli/Documents/git/meegflow-examples/examples/decoding_csp_eeg/bids
+Datasets (both external to this repo, not created by this test): point the
+``TEST_DATASETS_ROOT`` environment variable at a local folder containing
+both of the following (any developer can have their own such folder; if
+the variable isn't set, every case below is skipped as "dataset not
+found"):
+- ``$TEST_DATASETS_ROOT/ssvep-example-data``
+- ``$TEST_DATASETS_ROOT/decoding_csp_eeg/bids``
 
 Configs: configs/integration/{ssvep,decoding_csp}_{sequential,local,slurm}.yaml
 (pipeline steps copied verbatim from each dataset's known-good config; only
@@ -60,10 +64,17 @@ pytestmark = pytest.mark.skipif(
 # Dataset definitions                                                    #
 # --------------------------------------------------------------------- #
 
-SSVEP_ROOT = Path("/home/laouen.belloli/Documents/data/ssvep/ssvep-example-data")
-DECODING_CSP_ROOT = Path(
-    "/home/laouen.belloli/Documents/git/meegflow-examples/examples/decoding_csp_eeg/bids"
-)
+_datasets_root_env = os.environ.get("TEST_DATASETS_ROOT")
+if _datasets_root_env:
+    _DATASETS_ROOT = Path(_datasets_root_env)
+    SSVEP_ROOT = _DATASETS_ROOT / "ssvep-example-data"
+    DECODING_CSP_ROOT = _DATASETS_ROOT / "decoding_csp_eeg" / "bids"
+else:
+    # Nothing configured on this machine -- every case's missing-dataset
+    # skip below will fire, so the module simply reports "no tests run"
+    # rather than pointing at one specific developer's disk layout.
+    SSVEP_ROOT = Path("/dev/null/ssvep-example-data")
+    DECODING_CSP_ROOT = Path("/dev/null/decoding_csp_eeg/bids")
 
 # (dataset_id, config_name, backend) -> everything a test needs to run and
 # check one (dataset, backend) combination.

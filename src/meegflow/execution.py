@@ -292,11 +292,12 @@ def run_dask(
     from distributed import Client, as_completed
 
     cluster = _build_cluster(exec_config)
-    client = Client(cluster)
-    logger.info(f"Dask dashboard: {client.dashboard_link}")
-
+    client = None
     all_results: Dict[str, List[Dict[str, Any]]] = {}
     try:
+        client = Client(cluster)
+        logger.info(f"Dask dashboard: {client.dashboard_link}")
+
         futures = {}
         for recording in recordings:
             future = client.submit(
@@ -327,7 +328,8 @@ def run_dask(
                 logger.error(f"[{n_done}/{n_total}] Error processing {recording_name}: {exc}")
                 all_results.setdefault(subject_key, []).append({"error": str(exc)})
     finally:
-        client.close()
+        if client is not None:
+            client.close()
         cluster.close()
 
     return all_results
