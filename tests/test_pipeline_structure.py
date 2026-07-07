@@ -48,16 +48,31 @@ def test_pipeline_has_required_classes():
 
 
 def test_pipeline_has_required_methods():
-    """Test that the pipeline exposes its orchestration methods."""
+    """Test that the pipeline exposes its orchestration methods.
+
+    ``_process_single_recording`` and ``_get_pipeline_steps`` were replaced
+    by the module-level ``process_recording``/``build_step_functions``
+    functions as part of the Dask parallel-execution refactor: the
+    per-recording unit of work must be a plain, picklable function (not a
+    bound method closing over ``self``) so it can be dispatched to Dask
+    workers, including remote processes started via ``dask-jobqueue``. See
+    ``docs/dask_parallel_execution.md``.
+    """
     pipeline_file = src_dir / "meegflow" / "pipeline.py"
     with open(pipeline_file, 'r') as f:
         code = f.read()
 
-    # Orchestration methods remain on the pipeline class.
-    for method in ["run_pipeline", "run_step", "_load_custom_steps",
-                   "_get_pipeline_steps", "_process_single_recording"]:
+    # Orchestration methods remain on the pipeline class. ``run_step`` was
+    # removed: it was a test-only convenience wrapper never used by
+    # ``process_recording`` (see tests/conftest.py's run_step helper).
+    for method in ["run_pipeline", "_load_custom_steps"]:
         assert f"def {method}" in code, f"Method {method} not found"
         print(f"✓ Method {method} found")
+
+    # The per-recording unit of work is now module-level (see docstring).
+    for function in ["build_step_functions", "process_recording"]:
+        assert f"def {function}" in code, f"Function {function} not found"
+        print(f"✓ Function {function} found")
 
 
 def test_all_builtin_steps_registered():

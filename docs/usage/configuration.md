@@ -167,3 +167,14 @@ Some bad-channel detection steps accept `apply_on: [raw, epochs]` to mark the fo
 ### `instance`
 
 Steps that can act on either raw or epoched data accept an `instance` key: `'raw'` or `'epochs'`.
+
+## Execution
+
+A top-level `execution` block (optional) controls whether recordings are processed sequentially (default) or in parallel via Dask. See [Parallel Execution](parallel-execution.md) for full details.
+
+```yaml
+execution:
+  backend: local   # sequential (default) | local | slurm | pbs | sge | lsf | htcondor
+  n_workers: 4
+  cluster_kwargs: {}   # forwarded to the underlying Dask / dask-jobqueue cluster constructor
+```

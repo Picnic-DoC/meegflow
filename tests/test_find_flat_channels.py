@@ -16,6 +16,8 @@ import pytest
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
+from conftest import run_step
+
 try:
     import mne
     from meegflow import MEEGFlowPipeline
@@ -72,7 +74,7 @@ def test_find_flat_channels_basic():
     raw, expected_flat = create_test_raw_with_flat_channels()
 
     data = {'raw': raw, 'preprocessing_steps': []}
-    result = _pipeline().run_step("find_flat_channels", data, {'threshold': 1e-12})
+    result = run_step(_pipeline(), "find_flat_channels", data, {'threshold': 1e-12})
 
     detected_flat = result['preprocessing_steps'][-1]['bad_channels']
 
@@ -91,7 +93,7 @@ def test_find_flat_channels_with_custom_threshold():
     """Custom threshold changes how many channels are flagged."""
     raw, _ = create_test_raw_with_flat_channels()
     data = {'raw': raw, 'preprocessing_steps': []}
-    result = _pipeline().run_step("find_flat_channels", data, {'threshold': 1e-9})
+    result = run_step(_pipeline(), "find_flat_channels", data, {'threshold': 1e-9})
     detected_flat = result['preprocessing_steps'][-1]['bad_channels']
 
     # Should detect at least the completely flat channels
@@ -99,7 +101,7 @@ def test_find_flat_channels_with_custom_threshold():
 
     raw2, _ = create_test_raw_with_flat_channels()
     data2 = {'raw': raw2, 'preprocessing_steps': []}
-    result2 = _pipeline().run_step("find_flat_channels", data2, {'threshold': 1e-15})
+    result2 = run_step(_pipeline(), "find_flat_channels", data2, {'threshold': 1e-15})
     detected_flat2 = result2['preprocessing_steps'][-1]['bad_channels']
 
     # With lower threshold, should detect no more channels
@@ -117,7 +119,7 @@ def test_find_flat_channels_no_flat():
     raw = mne.io.RawArray(data, info, verbose=False)
 
     data_dict = {'raw': raw, 'preprocessing_steps': []}
-    result = _pipeline().run_step("find_flat_channels", data_dict, {'threshold': 1e-12})
+    result = run_step(_pipeline(), "find_flat_channels", data_dict, {'threshold': 1e-12})
     detected_flat = result['preprocessing_steps'][-1]['bad_channels']
 
     assert len(detected_flat) == 0, "Should not detect any flat channels"
@@ -134,7 +136,7 @@ def test_find_flat_channels_all_flat():
     raw = mne.io.RawArray(data, info, verbose=False)
 
     data_dict = {'raw': raw, 'preprocessing_steps': []}
-    result = _pipeline().run_step("find_flat_channels", data_dict, {'threshold': 1e-12})
+    result = run_step(_pipeline(), "find_flat_channels", data_dict, {'threshold': 1e-12})
     detected_flat = result['preprocessing_steps'][-1]['bad_channels']
 
     assert len(detected_flat) == n_channels, "Should detect all channels as flat"
@@ -146,7 +148,7 @@ def test_find_flat_channels_with_excluded_channels():
     raw, _ = create_test_raw_with_flat_channels()
     data = {'raw': raw, 'preprocessing_steps': []}
     excluded = ['EEG002']
-    result = _pipeline().run_step(
+    result = run_step(_pipeline(), 
         "find_flat_channels", data, {'threshold': 1e-12, 'excluded_channels': excluded}
     )
     detected_flat = result['preprocessing_steps'][-1]['bad_channels']
@@ -173,7 +175,7 @@ def test_find_flat_channels_with_picks():
     raw = mne.io.RawArray(data, info, verbose=False)
 
     data_dict = {'raw': raw, 'preprocessing_steps': []}
-    result = _pipeline().run_step(
+    result = run_step(_pipeline(), 
         "find_flat_channels", data_dict, {'threshold': 1e-12, 'picks': ['eeg']}
     )
     detected_flat = result['preprocessing_steps'][-1]['bad_channels']
@@ -191,7 +193,7 @@ def test_find_flat_channels_no_duplicate_bads():
     raw.info['bads'] = ['EEG002']
 
     data = {'raw': raw, 'preprocessing_steps': []}
-    result = _pipeline().run_step("find_flat_channels", data, {'threshold': 1e-12})
+    result = run_step(_pipeline(), "find_flat_channels", data, {'threshold': 1e-12})
 
     bads_count = result['raw'].info['bads'].count('EEG002')
     assert bads_count == 1, "Channel should not be duplicated in info['bads']"
@@ -201,4 +203,4 @@ def test_find_flat_channels_missing_raw():
     """find_flat_channels raises when 'raw' is missing."""
     data = {'preprocessing_steps': []}
     with pytest.raises(ValueError, match="requires 'raw'"):
-        _pipeline().run_step("find_flat_channels", data, {'threshold': 1e-12})
+        run_step(_pipeline(), "find_flat_channels", data, {'threshold': 1e-12})

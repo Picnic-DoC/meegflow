@@ -13,6 +13,8 @@ import pytest
 repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root / "src"))
 
+from conftest import run_step
+
 
 def _make_raw(n_channels=4, sfreq=100.0, duration=2.0):
     import mne
@@ -39,7 +41,7 @@ class TestChunkInEpochStepName:
             "raw": _make_raw(),
             "preprocessing_steps": [],
         }
-        result = pipeline.run_step("chunk_in_epoch", data, {"duration": 1.0})
+        result = run_step(pipeline, "chunk_in_epoch", data, {"duration": 1.0})
         recorded_names = [s["step"] for s in result["preprocessing_steps"]]
         assert "chunk_in_epoch" in recorded_names, (
             f"Expected 'chunk_in_epoch' in step names, got {recorded_names}"
@@ -56,13 +58,13 @@ class TestConcatenateRecordingsErrorMessage:
         pipeline = _make_pipeline()
         data = {"preprocessing_steps": []}  # no 'all_raw'
         with pytest.raises(ValueError, match="concatenate_recordings"):
-            pipeline.run_step("concatenate_recordings", data, {})
+            run_step(pipeline, "concatenate_recordings", data, {})
 
     def test_error_message_does_not_mention_notch_filter(self):
         pipeline = _make_pipeline()
         data = {"preprocessing_steps": []}
         try:
-            pipeline.run_step("concatenate_recordings", data, {})
+            run_step(pipeline, "concatenate_recordings", data, {})
         except ValueError as exc:
             assert "notch_filter" not in str(exc), (
                 f"Error message should not mention 'notch_filter': {exc}"

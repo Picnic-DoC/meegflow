@@ -21,6 +21,10 @@ pipeline = MEEGFlowPipeline(reader=reader, config=config)
 pipeline.run_pipeline(subjects=["01", "02"], tasks=["rest"])
 ```
 
+By default recordings are processed sequentially, in this same process. To
+process them in parallel via Dask instead, add an `execution` block to
+`config` — see [Parallel Execution](parallel-execution.md).
+
 ## Using a GlobReader
 
 For datasets that don't follow strict BIDS naming you can use `GlobReader` with a glob pattern that contains `{subject}`, `{session}`, `{task}`, etc. placeholders:

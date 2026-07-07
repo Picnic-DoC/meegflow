@@ -30,6 +30,12 @@ setup(
         "matplotlib>=3.7.0",
         "pandas>=2.0.0",
     ],
+    extras_require={
+        # 'local' execution backend (in-process/local Dask cluster).
+        "dask": ["dask[distributed]>=2024.1.0"],
+        # 'slurm' | 'pbs' | 'sge' | 'lsf' | 'htcondor' execution backends.
+        "dask-jobqueue": ["dask[distributed]>=2024.1.0", "dask-jobqueue>=0.8.2"],
+    },
     python_requires=">=3.11",
     entry_points={
         "console_scripts": [

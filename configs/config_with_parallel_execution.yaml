@@ -1,0 +1,45 @@
+# Example configuration demonstrating parallel recording execution via Dask.
+#
+# The 'execution' block is entirely optional -- omit it (or set
+# backend: sequential) to keep today's single-process, in-order behavior.
+# See docs/usage/parallel-execution.md and docs/dask_parallel_execution.md
+# for the full reference.
+
+execution:
+  # 'local' runs an in-process Dask cluster (comparable to
+  # ProcessPoolExecutor/joblib) -- good for a multi-core workstation.
+  # Requires the 'dask' extra: pip install "meegflow[dask]"
+  backend: local
+  n_workers: 4
+
+  # For an HPC cluster instead, use one of: slurm | pbs | sge | lsf | htcondor
+  # (requires: pip install "meegflow[dask-jobqueue]"), e.g.:
+  #
+  # backend: slurm
+  # n_workers: 8
+  # cluster_kwargs:
+  #   queue: normal
+  #   cores: 4
+  #   memory: 16GB
+  #   walltime: "02:00:00"
+
+pipeline:
+  - name: bandpass_filter
+    l_freq: 0.5
+    h_freq: 40.0
+  - name: reference
+    ref_channels: average
+    instance: 'raw'
+  - name: find_events
+    shortest_event: 1
+  - name: epoch
+    tmin: -0.2
+    tmax: 0.8
+    baseline: [null, 0]
+    event_id: null
+    reject:
+      eeg: 1.5e-04
+  - name: save_clean_instance
+    instance: epochs
+  - name: generate_json_report
+  - name: generate_html_report

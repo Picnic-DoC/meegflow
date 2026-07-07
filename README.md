@@ -12,11 +12,11 @@ https://picnic-doc.github.io/meegflow/
 - **Modular Design**: Each preprocessing step is a separate function
 - **Configuration-Driven**: Choose steps, their order, and parameters via YAML
 - **Custom Steps Support**: Extend the pipeline with your own preprocessing functions
-- **Progress Tracking**: Rich progress bars show real-time progress for recordings and preprocessing steps
+- **Progress Tracking**: Rich progress bars show real-time progress for recordings (per-recording log lines when running in parallel)
 - **Comprehensive Logging**: MNE logger integration with optional log file output
 - **Multiple Output Formats**: Save preprocessed data in `.fif`, `.pkl` (pickle), `.h5` (HDF5), or `.npy` (NumPy) format via the `save_clean_instance` step, plus interactive HTML and JSON reports
 - **Modular Architecture**: Savers, readers, and pipeline steps are each in their own module for easy extension
-- **Batch Processing**: Process multiple subjects sequentially
+- **Batch Processing**: Process multiple subjects sequentially (default) or in parallel via Dask — locally, or on a Slurm/PBS/SGE/LSF/HTCondor cluster
 - **Command-line Interface**: Easy to use from the terminal
 
 ## Installation
@@ -454,6 +454,7 @@ Additional example configurations available in `configs/`:
 - `config_with_drop_bad_channels.yaml` - Example using drop_bad_channels instead of interpolation
 - `config_with_excluded_channels.yaml` - Example using excluded_channels parameter to preserve reference channels
 - `config_with_custom_steps.yaml` - Example showing how to integrate custom preprocessing steps
+- `config_with_parallel_execution.yaml` - Example enabling parallel recording execution via Dask (see [Parallel Execution with Dask](#parallel-execution-with-dask))
 
 ## Command-Line Arguments
 
@@ -838,7 +839,7 @@ Generate HTML report with interactive visualizations.
 
 ## Batch Processing
 
-The pipeline processes multiple subjects and files sequentially. You can process:
+By default, the pipeline processes multiple subjects and files **sequentially**, in a single process:
 
 ```bash
 # Process specific subjects with a specific task
@@ -861,7 +862,44 @@ python src/cli.py \
     --tasks rest
 ```
 
-For HPC/cluster environments, you can create your own SLURM or other batch submission scripts that call the pipeline with subject lists.
+### Parallel Execution with Dask
+
+To process recordings in parallel instead, add an `execution` block to your YAML
+config — one full pipeline run per recording is dispatched as a separate Dask
+job. This is entirely opt-in: omitting `execution` (or setting
+`backend: sequential`) keeps today's single-process behavior.
+
+```yaml
+execution:
+  backend: local     # sequential (default) | local | slurm | pbs | sge | lsf | htcondor
+  n_workers: 4
+```
+
+- `local` runs an in-process Dask cluster (comparable to
+  `ProcessPoolExecutor`/`joblib`) — good for a multi-core workstation.
+- `slurm` / `pbs` / `sge` / `lsf` / `htcondor` submit one Dask worker job per
+  HPC scheduler job via [`dask-jobqueue`](https://jobqueue.dask.org/), for
+  running on a cluster. Pass scheduler-specific parameters (queue, cores,
+  memory, walltime, ...) via `cluster_kwargs`:
+
+```yaml
+execution:
+  backend: slurm
+  n_workers: 8
+  cluster_kwargs:
+    queue: normal
+    cores: 4
+    memory: 16GB
+    walltime: "02:00:00"
+```
+
+Parallel backends require the optional `dask` (for `local`) or
+`dask-jobqueue` (for the HPC backends) extras — see [Installation](#installation).
+`custom_steps_folder`, if used, must be on a filesystem reachable from every
+worker (trivially true for `local`; for `dask-jobqueue`, it must be a shared
+filesystem also mounted on the compute nodes).
+
+See `docs/dask_parallel_execution.md` for the full design rationale.
 
 ## Progress Tracking and Logging
 
@@ -869,15 +907,17 @@ The pipeline includes comprehensive progress tracking and logging features:
 
 ### Progress Bars
 
-When running the pipeline, you'll see two levels of progress bars:
-1. **Overall progress**: Shows progress across all recordings being processed
-2. **Step progress**: Shows progress through preprocessing steps for each recording
-
-The progress bars use the `rich` library and display:
+The sequential backend (today's default) shows a `rich` progress bar with:
 - Spinner animation
-- Progress bar with percentage
+- Progress across all recordings being processed, with percentage
 - Time remaining estimate
-- Current step being executed
+- The recording currently being processed
+
+Parallel backends (`local` and `dask-jobqueue`) instead log one line per
+recording as it's submitted/completed/failed (a live, in-place-updating
+progress bar can't meaningfully represent state changing in other
+processes or on other machines), plus a Dask dashboard link for the
+richer live view Dask itself provides.
 
 ### Logging
 
@@ -949,6 +989,7 @@ The Docker image includes several pre-configured pipeline examples in `/app/conf
 - `/app/configs/config_with_drop_bad_channels.yaml` - Pipeline using drop_bad_channels instead of interpolation
 - `/app/configs/config_with_excluded_channels.yaml` - Pipeline demonstrating excluded_channels parameter
 - `/app/configs/config_with_custom_steps.yaml` - Example template for using custom preprocessing steps
+- `/app/configs/config_with_parallel_execution.yaml` - Example enabling parallel recording execution via Dask
 
 Example using a built-in config:
 ```bash
@@ -990,6 +1031,11 @@ Note: This disables SSL verification for PyPI and should only be used in trusted
 - rich >= 13.0.0
 - matplotlib >= 3.7.0 (recommended)
 - pandas >= 2.0.0 (recommended)
+
+Optional, for parallel execution (`pip install meegflow[dask]` /
+`meegflow[dask-jobqueue]`):
+- dask[distributed] >= 2024.1.0
+- dask-jobqueue >= 0.8.2 (Slurm/PBS/SGE/LSF/HTCondor backends only)
 
 ## License
 

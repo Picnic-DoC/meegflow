@@ -75,21 +75,6 @@ import mne
 from mne.utils import logger
 
 
-def _iteratively_find_outliers(X, threshold=3.0, max_iter=4):
-    """Find outliers based on iterated Z-scoring. """
-
-    X = np.ma.masked_array(X, mask=False)
-    for _ in range(max_iter):
-        
-        X_z = np.abs(zscore(X))
-        current_bad = X_z > threshold
-        if np.all(~current_bad):
-            break
-        
-        X.mask |= current_bad
-
-    return np.where(X.mask)[0]
-
 def _find_outliers(X, threshold=3.0, max_iter=2, tail=0):
     """Find outliers based on iterated Z-scoring.
 

@@ -1,0 +1,96 @@
+# Integration fixture: ssvep-example-data, Slurm (dask-jobqueue) backend.
+#
+# Pipeline steps copied verbatim from the known-good config at
+# /home/laouen.belloli/Documents/data/ssvep/configs/standard_pipeline.yaml
+# Used by tests/test_execution_integration_real_data.py.
+#
+# Dataset: /home/laouen.belloli/Documents/data/ssvep/ssvep-example-data
+# Run with: --subjects 01 02 --sessions 01 --tasks ssvep --extension .vhdr
+# Requires: pip install "meegflow[dask-jobqueue]"
+#
+# IMPORTANT: there is no Slurm scheduler installed on this dev machine, and
+# this config was never run/verified against a real cluster. The
+# 'cluster_kwargs' below (queue/cores/memory/walltime) are generic
+# placeholders only -- you MUST edit them to match whatever real Slurm
+# cluster you actually run this against before using it (queue name, core
+# count, memory, and walltime are all cluster-specific).
+
+execution:
+  backend: slurm
+  n_workers: 2
+  cluster_kwargs:
+    queue: normal       # EDIT ME: a real queue/partition name on your cluster
+    cores: 4            # EDIT ME: cores per Dask worker job
+    memory: 16GB         # EDIT ME: memory per Dask worker job
+    walltime: "01:00:00" # EDIT ME: walltime per Dask worker job
+
+pipeline:
+  - name: concatenate_recordings
+
+  - name: set_montage
+    montage: standard_1020
+
+  - name: bandpass_filter
+    l_freq: 0.1
+    h_freq: 40.0
+
+  - name: notch_filter
+    freqs: [50.0, 100.0]
+
+  - name: resample
+    instance: raw
+    sfreq: 250.0
+    npad: auto
+
+  - name: find_events
+    get_events_from: annotations
+    shortest_event: 1
+
+  - name: epoch
+    tmin: -0.2
+    tmax: 1.2
+    baseline: [null, 0.0]
+    reject: null
+
+  - name: find_bads_channels_threshold
+    reject:
+      eeg: 1.0e-4
+    n_epochs_bad_ch: 0.5
+    apply_on: ['epochs', 'raw']
+
+  - name: find_bads_channels_variance
+    instance: epochs
+    apply_on: ['epochs', 'raw']
+    zscore_thresh: 4
+    max_iter: 2
+
+  - name: find_bads_channels_high_frequency
+    instance: epochs
+    apply_on: ['epochs', 'raw']
+    zscore_thresh: 4
+    max_iter: 2
+
+  - name: find_bads_epochs_threshold
+    reject:
+      eeg: 1.0e-4
+    n_channels_bad_epoch: 0.1
+
+  - name: reference
+    instance: epochs
+    ref_channels: average
+
+  - name: reference
+    instance: raw
+    ref_channels: average
+
+  - name: save_clean_instance
+    instance: epochs
+    overwrite: true
+
+  - name: save_clean_instance
+    instance: raw
+    overwrite: true
+
+  - name: generate_json_report
+
+  - name: generate_html_report

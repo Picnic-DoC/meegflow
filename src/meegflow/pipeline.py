@@ -96,14 +96,14 @@ import os
 os.environ["MPLBACKEND"] = "Agg"
 
 from pathlib import Path
-from typing import Union, Dict, Any, List, Callable, TYPE_CHECKING
+from typing import Union, Dict, Any, List, Callable, Optional, TYPE_CHECKING
 from mne.utils import logger
 from mne_bids import BIDSPath
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
 import importlib.util
 import sys
 import inspect
 from .context import PipelineContext
+from .execution import ExecutionConfig, dispatch
 from .steps import STEP_REGISTRY
 
 if TYPE_CHECKING:
@@ -136,14 +136,7 @@ class MEEGFlowPipeline:
 
         # Built-in steps come from the registry (populated by importing the
         # steps package); custom steps may add to or override them by name.
-        self.step_functions = dict(STEP_REGISTRY)
-
-        # Load custom steps if folder is specified in config
-        custom_steps_folder = self.config.get('custom_steps_folder')
-        if custom_steps_folder:
-            custom_steps = self._load_custom_steps(custom_steps_folder)
-            self.step_functions.update(custom_steps)
-            logger.info(f"Loaded {len(custom_steps)} custom step(s): {list(custom_steps.keys())}")
+        self.step_functions = build_step_functions(self.config)
 
         # Validate pipeline steps if provided in config
         pipeline_cfg = self.config.get('pipeline', [])
@@ -155,52 +148,6 @@ class MEEGFlowPipeline:
     def dataset_root(self) -> Path:
         """Get the dataset root path from the reader."""
         return self.reader.root
-
-    def run_step(
-        self,
-        name: str,
-        data: Union[Dict[str, Any], "PipelineContext"],
-        config: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
-        """Execute a single named step against a data mapping.
-
-        Wraps ``data`` in a :class:`~meegflow.context.PipelineContext` (unless it
-        already is one), dispatches the registered step, and returns the updated
-        data mapping. Useful for running or testing one step in isolation.
-
-        Parameters
-        ----------
-        name : str
-            Registered step name (built-in or custom).
-        data : dict or PipelineContext
-            The shared data bag the step reads from / writes to.
-        config : dict, optional
-            Step configuration (everything except the ``name`` key).
-
-        Returns
-        -------
-        dict
-            The updated data mapping.
-        """
-        if name not in self.step_functions:
-            raise ValueError(f"Unknown step '{name}'")
-
-        if isinstance(data, PipelineContext):
-            ctx = data
-        else:
-            ctx = PipelineContext(
-                data,
-                reader=self.reader,
-                output_root=self.output_root,
-                config=self.config,
-            )
-
-        result = self.step_functions[name](ctx, config or {})
-        if isinstance(result, PipelineContext):
-            ctx = result
-        elif isinstance(result, dict):
-            ctx.data = result
-        return ctx.data
 
     def _load_custom_steps(self, custom_steps_folder: Union[str, Path]) -> Dict[str, Callable]:
         """
@@ -313,144 +260,6 @@ class MEEGFlowPipeline:
         
         return custom_steps
 
-
-    def _get_pipeline_steps(self) -> List[Dict[str, Any]]:
-        """Retrieve the list of pipeline steps from the configuration."""
-        pipeline_steps = self.config.get('pipeline', [])
-
-        if not pipeline_steps:
-            raise ValueError(
-                "No pipeline steps provided in configuration. "
-                "Please specify a 'pipeline' list in your config file with at least one preprocessing step."
-            )
-    
-        return pipeline_steps
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def _process_single_recording(
-        self, 
-        paths: List[Union[BIDSPath, Path]], 
-        metadata: Dict[str, Any],
-        progress: Progress = None,
-        io_backend: str = 'read_raw_bids',
-        task_id: int = None
-    ) -> Dict[str, Any]:
-        """Process a single recording using the configured pipeline steps.
-        
-        Parameters
-        ----------
-        paths : list of BIDSPath or Path
-            List of file paths to process together
-        metadata : dict
-            Metadata dictionary with keys like 'subject', 'task', 'session', 'acquisition'
-        progress : Progress, optional
-            Rich progress bar instance
-        task_id : int, optional
-            Progress task ID for updating progress
-            
-        Returns
-        -------
-        results : dict
-            Dictionary containing processing results
-        """
-        # Initialize data dictionary with metadata
-        data = {
-            'subject': metadata.get('subject'),
-            'task': metadata.get('task'),
-            'session': metadata.get('session'),
-            'acquisition': metadata.get('acquisition'),
-            'preprocessing_steps': []
-        }
-
-        # Read data files
-        logger.info(f"Reading data from:")
-        for path in paths:
-            logger.info(f"  - {path}")
-
-        # Read all files (loading is delegated to the reader)
-        data['all_raw'] = self.reader.read(paths, io_backend=io_backend)
-
-        # Wrap the shared data bag in a context exposing the step services.
-        ctx = PipelineContext(
-            data,
-            reader=self.reader,
-            output_root=self.output_root,
-            config=self.config,
-        )
-
-        # Get pipeline steps from config
-        pipeline_steps = self._get_pipeline_steps()
-
-        # Execute each step in order
-        for step_idx, step in enumerate(pipeline_steps):
-            step_name = step.get('name')
-            if step_name not in self.step_functions:
-                raise ValueError(f"Unknown step '{step_name}' in pipeline execution")
-
-            # Update progress for this step
-            if progress and task_id is not None:
-                progress.update(task_id, description=f"[cyan]Step: {step_name}", completed=step_idx)
-
-            logger.info(f"Executing step: {step_name}")
-
-            # Execute the step with its configuration
-            step_config = {k: v for k, v in step.items() if k != 'name'}
-            result = self.step_functions[step_name](ctx, step_config)
-            # Steps mutate the context in place; for backwards compatibility a
-            # step may also return the context or a plain data mapping.
-            if isinstance(result, PipelineContext):
-                ctx = result
-            elif isinstance(result, dict):
-                ctx.data = result
-
-        data = ctx.data
-
-        # Mark as complete
-        if progress and task_id is not None:
-            progress.update(task_id, completed=len(pipeline_steps))
-
-        # Prepare results
-        results = {
-            'subject': data.get('subject'),
-            'task': data.get('task'),
-            'session': data.get('session'),
-            'acquisition': data.get('acquisition'),
-            'raw_files': [str(p) for p in paths],
-        }
-
-        # Copy relevant output information to results
-        for key in ['raw_file', 'epochs_file', 'json_report', 'html_report', 'n_epochs', 'preprocessing_steps']:
-            if key in data:
-                results[key] = data[key]
-
-        logger.info(f"Successfully processed {data.get('subject')} - {data.get('session')} - {data.get('task')} - {data.get('acquisition')}")
-        return results
-
     def run_pipeline(
         self,
         subjects: Union[str, List[str]] = None,
@@ -462,6 +271,15 @@ class MEEGFlowPipeline:
         io_backend: str = 'read_raw_bids'
     ) -> Dict[str, Any]:
         """Run the pipeline using the configured reader to find files.
+
+        Acts as the job manager: discovers the recording list via the
+        reader, then dispatches one job per recording through
+        :func:`meegflow.execution.dispatch`. The execution backend
+        (sequential single-process, an in-process/local Dask cluster, or a
+        ``dask-jobqueue`` HPC cluster) is selected via the ``execution``
+        block of ``config`` (see
+        :class:`~meegflow.execution.ExecutionConfig`); if absent, execution
+        is sequential and single-process, matching previous behavior.
 
         Parameters
         ----------
@@ -499,67 +317,182 @@ class MEEGFlowPipeline:
             runs=runs,
             extension=extension
         )
-        
+
         logger.info(f"Found {len(recordings)} recording(s) to process")
 
-        all_results = {}
+        exec_config = ExecutionConfig.from_config(self.config)
+        logger.info(
+            f"Execution backend: {exec_config.backend}"
+            + (f" (n_workers={exec_config.n_workers})" if exec_config.n_workers != 1 else "")
+        )
 
-        # Create progress bars for matched paths and preprocessing steps
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeRemainingColumn(),
-        ) as progress:
-
-            # Overall progress for all recordings
-            overall_task = progress.add_task(
-                "[green]Processing recordings", 
-                total=len(recordings)
-            )
-
-            for i, recording in enumerate(recordings):
-                # Extract metadata and paths from the recording
-                paths = recording['paths']
-                metadata = recording['metadata']
-                recording_name = recording['recording_name']
-
-                # Get pipeline steps for this recording's progress bar
-                pipeline_steps = self._get_pipeline_steps()
-                
-                # Create a task for the current recording's steps
-                step_task_id = progress.add_task(
-                    f"[cyan]{recording_name}", 
-                    total=len(pipeline_steps)
-                )
-
-                try:
-                    results = self._process_single_recording(
-                        paths=paths,
-                        metadata=metadata,
-                        progress=progress,
-                        io_backend=io_backend,
-                        task_id=step_task_id
-                    )
-
-                    # Use subject from metadata if available, otherwise use first available key
-                    subject_key = metadata.get('subject', list(metadata.values())[0] if metadata else 'unknown')
-                    all_results.setdefault(subject_key, []).append(results)
-                    logger.info(f"Successfully completed {recording_name}")
-                except Exception as exc:
-                    # Do not stop the whole batch if one subject fails; capture the error
-                    logger.error(f"Error processing {recording_name}: {str(exc)}")
-                    subject_key = metadata.get('subject', list(metadata.values())[0] if metadata else 'unknown')
-                    all_results.setdefault(subject_key, []).append({'error': str(exc)})
-                    # Continue processing the remaining recordings; the failure
-                    # is captured in all_results and summarised by the caller.
-                finally:
-                    # Remove the step task after this recording is done
-                    progress.remove_task(step_task_id)
-                
-                # Update overall progress
-                progress.update(overall_task, completed=i+1)
+        all_results = dispatch(
+            recordings,
+            reader=self.reader,
+            output_root=self.output_root,
+            config=self.config,
+            step_functions=self.step_functions,
+            io_backend=io_backend,
+            exec_config=exec_config,
+        )
 
         logger.info(f"Pipeline completed.")
         return all_results
+
+
+def build_step_functions(config: Dict[str, Any]) -> Dict[str, Callable]:
+    """Build the ``{name: callable}`` step registry for a given config.
+
+    Combines the built-in ``STEP_REGISTRY`` with any custom steps declared
+    via ``config['custom_steps_folder']``. Used both by
+    ``MEEGFlowPipeline.__init__`` and by parallel workers (Dask), which must
+    independently reconstruct the step registry: functions loaded via
+    ``importlib`` cannot be relied upon to pickle by reference across
+    process boundaries (see ``docs/dask_parallel_execution.md``).
+
+    Parameters
+    ----------
+    config : dict
+        Pipeline configuration. Recognizes ``custom_steps_folder`` (str or
+        Path), same as ``MEEGFlowPipeline``.
+
+    Returns
+    -------
+    dict
+        Mapping of step name -> callable.
+    """
+    step_functions = dict(STEP_REGISTRY)
+
+    custom_steps_folder = (config or {}).get('custom_steps_folder')
+    if custom_steps_folder:
+        # ``_load_custom_steps`` never reads ``self`` internally, so it can
+        # be called as a plain function; this keeps the loading logic in a
+        # single place while letting workers rebuild the registry without a
+        # MEEGFlowPipeline instance.
+        custom_steps = MEEGFlowPipeline._load_custom_steps(None, custom_steps_folder)
+        step_functions.update(custom_steps)
+        logger.info(f"Loaded {len(custom_steps)} custom step(s): {list(custom_steps.keys())}")
+
+    return step_functions
+
+
+def process_recording(
+    reader: "DatasetReader",
+    output_root: Optional[Union[str, Path]],
+    config: Dict[str, Any],
+    step_functions: Dict[str, Callable],
+    paths: List[Union[BIDSPath, Path]],
+    metadata: Dict[str, Any],
+    io_backend: str = 'read_raw_bids',
+) -> Dict[str, Any]:
+    """Run the configured pipeline steps for a single recording, end to end.
+
+    This is the per-recording unit of work dispatched by
+    ``meegflow.execution.run_sequential`` and ``meegflow.execution.run_dask``.
+    It is a plain module-level function (no bound ``self``) so it can be
+    submitted to Dask workers -- including remote processes started by
+    ``dask-jobqueue`` -- without needing to pickle a ``MEEGFlowPipeline``
+    instance.
+
+    Parameters
+    ----------
+    reader : DatasetReader
+        Reader used to load ``paths`` into memory.
+    output_root : str or Path, optional
+        Derivatives root override (see
+        :meth:`~meegflow.context.PipelineContext.derivatives_root`).
+    config : dict
+        Full pipeline configuration (must contain a ``'pipeline'`` key
+        listing the steps to run).
+    step_functions : dict
+        Mapping of step name -> callable, as built by
+        :func:`build_step_functions`.
+    paths : list of BIDSPath or Path
+        File paths to process together as a single recording.
+    metadata : dict
+        Metadata dictionary with keys like 'subject', 'task', 'session',
+        'acquisition'.
+    io_backend : str
+        MNE IO function used to read each file (default:
+        ``'read_raw_bids'``).
+
+    Returns
+    -------
+    results : dict
+        Dictionary containing processing results.
+
+    Raises
+    ------
+    ValueError
+        If ``config`` has no (or an empty) ``'pipeline'`` list, or if a
+        configured step name is not in ``step_functions``.
+    """
+    # Initialize data dictionary with metadata
+    data = {
+        'subject': metadata.get('subject'),
+        'task': metadata.get('task'),
+        'session': metadata.get('session'),
+        'acquisition': metadata.get('acquisition'),
+        'preprocessing_steps': []
+    }
+
+    # Read data files
+    logger.info(f"Reading data from:")
+    for path in paths:
+        logger.info(f"  - {path}")
+
+    # Read all files (loading is delegated to the reader)
+    data['all_raw'] = reader.read(paths, io_backend=io_backend)
+
+    # Wrap the shared data bag in a context exposing the step services.
+    ctx = PipelineContext(
+        data,
+        reader=reader,
+        output_root=output_root,
+        config=config,
+    )
+
+    # Get pipeline steps from config
+    pipeline_steps = config.get('pipeline', [])
+    if not pipeline_steps:
+        raise ValueError(
+            "No pipeline steps provided in configuration. "
+            "Please specify a 'pipeline' list in your config file with at least one preprocessing step."
+        )
+
+    # Execute each step in order
+    for step in pipeline_steps:
+        step_name = step.get('name')
+        if step_name not in step_functions:
+            raise ValueError(f"Unknown step '{step_name}' in pipeline execution")
+
+        logger.info(f"Executing step: {step_name}")
+
+        # Execute the step with its configuration
+        step_config = {k: v for k, v in step.items() if k != 'name'}
+        result = step_functions[step_name](ctx, step_config)
+        # Steps mutate the context in place; for backwards compatibility a
+        # step may also return the context or a plain data mapping.
+        if isinstance(result, PipelineContext):
+            ctx = result
+        elif isinstance(result, dict):
+            ctx.data = result
+
+    data = ctx.data
+
+    # Prepare results
+    results = {
+        'subject': data.get('subject'),
+        'task': data.get('task'),
+        'session': data.get('session'),
+        'acquisition': data.get('acquisition'),
+        'raw_files': [str(p) for p in paths],
+    }
+
+    # Copy relevant output information to results
+    for key in ['raw_file', 'epochs_file', 'json_report', 'html_report', 'n_epochs', 'preprocessing_steps']:
+        if key in data:
+            results[key] = data[key]
+
+    logger.info(f"Successfully processed {data.get('subject')} - {data.get('session')} - {data.get('task')} - {data.get('acquisition')}")
+    return results

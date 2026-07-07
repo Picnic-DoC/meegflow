@@ -17,6 +17,7 @@ sys.path.insert(0, str(src_dir))
 
 from meegflow import MEEGFlowPipeline
 from meegflow.readers import BIDSReader
+from conftest import run_step
 
 
 def create_mock_raw_with_montage():
@@ -81,7 +82,7 @@ def test_bad_channels_topoplot_generation():
         }
         
         # Call the HTML report generation step
-        result = pipeline.run_step("generate_html_report", data, {})
+        result = run_step(pipeline, "generate_html_report", data, {})
         
         # Verify HTML report was created
         assert 'html_report' in result
@@ -146,7 +147,7 @@ def test_preprocessing_steps_table_generation():
         }
         
         # Call the HTML report generation step
-        result = pipeline.run_step("generate_html_report", data, {})
+        result = run_step(pipeline, "generate_html_report", data, {})
         
         # Verify HTML report was created
         assert 'html_report' in result
@@ -204,7 +205,7 @@ def test_html_report_without_bad_channels():
         }
         
         # Call the HTML report generation step (should not fail)
-        result = pipeline.run_step("generate_html_report", data, {})
+        result = run_step(pipeline, "generate_html_report", data, {})
         
         # Verify HTML report was created
         assert 'html_report' in result
