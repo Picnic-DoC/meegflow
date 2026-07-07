@@ -62,8 +62,10 @@ def test_pipeline_has_required_methods():
     with open(pipeline_file, 'r') as f:
         code = f.read()
 
-    # Orchestration methods remain on the pipeline class.
-    for method in ["run_pipeline", "run_step", "_load_custom_steps"]:
+    # Orchestration methods remain on the pipeline class. ``run_step`` was
+    # removed: it was a test-only convenience wrapper never used by
+    # ``process_recording`` (see tests/conftest.py's run_step helper).
+    for method in ["run_pipeline", "_load_custom_steps"]:
         assert f"def {method}" in code, f"Method {method} not found"
         print(f"✓ Method {method} found")
 

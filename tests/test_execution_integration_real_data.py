@@ -22,8 +22,8 @@ Datasets (both external to this repo, not created by this test): point the
 both of the following (any developer can have their own such folder; if
 the variable isn't set, every case below is skipped as "dataset not
 found"):
-- ``$TEST_DATASETS_ROOT/ssvep-example-data``
-- ``$TEST_DATASETS_ROOT/decoding_csp_eeg/bids``
+- ``$TEST_DATASETS_ROOT/ssvep``
+- ``$TEST_DATASETS_ROOT/decoding_csp_eeg``
 
 Configs: configs/integration/{ssvep,decoding_csp}_{sequential,local,slurm}.yaml
 (pipeline steps copied verbatim from each dataset's known-good config; only
@@ -67,19 +67,19 @@ pytestmark = pytest.mark.skipif(
 _datasets_root_env = os.environ.get("TEST_DATASETS_ROOT")
 if _datasets_root_env:
     _DATASETS_ROOT = Path(_datasets_root_env)
-    SSVEP_ROOT = _DATASETS_ROOT / "ssvep-example-data"
-    DECODING_CSP_ROOT = _DATASETS_ROOT / "decoding_csp_eeg" / "bids"
+    SSVEP_ROOT = _DATASETS_ROOT / "ssvep"
+    DECODING_CSP_ROOT = _DATASETS_ROOT / "decoding_csp_eeg"
 else:
     # Nothing configured on this machine -- every case's missing-dataset
     # skip below will fire, so the module simply reports "no tests run"
     # rather than pointing at one specific developer's disk layout.
-    SSVEP_ROOT = Path("/dev/null/ssvep-example-data")
-    DECODING_CSP_ROOT = Path("/dev/null/decoding_csp_eeg/bids")
+    SSVEP_ROOT = Path("/dev/null/ssvep")
+    DECODING_CSP_ROOT = Path("/dev/null/decoding_csp_eeg")
 
 # (dataset_id, config_name, backend) -> everything a test needs to run and
 # check one (dataset, backend) combination.
 CASES = [
-    # -- ssvep-example-data: subjects 01/02, session 01, task 'ssvep' -----
+    # -- ssvep: subjects 01/02, session 01, task 'ssvep' -----
     dict(
         dataset_id="ssvep",
         backend="sequential",

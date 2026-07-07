@@ -149,52 +149,6 @@ class MEEGFlowPipeline:
         """Get the dataset root path from the reader."""
         return self.reader.root
 
-    def run_step(
-        self,
-        name: str,
-        data: Union[Dict[str, Any], "PipelineContext"],
-        config: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
-        """Execute a single named step against a data mapping.
-
-        Wraps ``data`` in a :class:`~meegflow.context.PipelineContext` (unless it
-        already is one), dispatches the registered step, and returns the updated
-        data mapping. Useful for running or testing one step in isolation.
-
-        Parameters
-        ----------
-        name : str
-            Registered step name (built-in or custom).
-        data : dict or PipelineContext
-            The shared data bag the step reads from / writes to.
-        config : dict, optional
-            Step configuration (everything except the ``name`` key).
-
-        Returns
-        -------
-        dict
-            The updated data mapping.
-        """
-        if name not in self.step_functions:
-            raise ValueError(f"Unknown step '{name}'")
-
-        if isinstance(data, PipelineContext):
-            ctx = data
-        else:
-            ctx = PipelineContext(
-                data,
-                reader=self.reader,
-                output_root=self.output_root,
-                config=self.config,
-            )
-
-        result = self.step_functions[name](ctx, config or {})
-        if isinstance(result, PipelineContext):
-            ctx = result
-        elif isinstance(result, dict):
-            ctx.data = result
-        return ctx.data
-
     def _load_custom_steps(self, custom_steps_folder: Union[str, Path]) -> Dict[str, Callable]:
         """
         Load custom preprocessing steps from Python files in the specified folder.
