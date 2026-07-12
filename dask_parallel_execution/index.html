@@ -1,0 +1,1447 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A modular, configuration-driven MEEG preprocessing pipeline using MNE-Python">
+      
+      
+      
+        <link rel="canonical" href="https://picnic-doc.github.io/meegflow/dask_parallel_execution/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Design: Parallel Recording Execution with Dask - MEEGFlow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#design-parallel-recording-execution-with-dask" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MEEGFlow" class="md-header__button md-logo" aria-label="MEEGFlow" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MEEGFlow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Design: Parallel Recording Execution with Dask
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Picnic-DoC/meegflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Picnic-DoC/meegflow
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../usage/cli/" class="md-tabs__link">
+          
+  
+  
+  Usage
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/pipeline/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MEEGFlow" class="md-nav__button md-logo" aria-label="MEEGFlow" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    MEEGFlow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Picnic-DoC/meegflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Picnic-DoC/meegflow
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Usage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command Line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/readers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/parallel-execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallel Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/readers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/viz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-problem-statement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Problem statement
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-current-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Current architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-target-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Target architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-concrete-change-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Concrete change list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Concrete change list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-new-module-srcmeegflowexecutionpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 New module: src/meegflow/execution.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-srcmeegflowpipelinepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 src/meegflow/pipeline.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-custom-steps-reaching-worker-processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Custom steps reaching worker processes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-new-config-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 New config surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-progress-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Progress reporting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-setuppy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 setup.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-failure-isolation-preserved" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 Failure isolation preserved
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-things-that-need-review-before-implementing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Things that need review before implementing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="design-parallel-recording-execution-with-dask">Design: Parallel Recording Execution with Dask<a class="headerlink" href="#design-parallel-recording-execution-with-dask" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> proposed → implemented (see "Implementation" commits on
+<code>feature/dask-parallel-execution</code>)
+<strong>Author:</strong> MEEGFlow dev agent
+<strong>Date:</strong> 2026-07-03</p>
+<h2 id="1-problem-statement">1. Problem statement<a class="headerlink" href="#1-problem-statement" title="Permanent link">&para;</a></h2>
+<p><code>MEEGFlowPipeline.run_pipeline</code> currently processes recordings strictly
+sequentially, in a single Python process, one at a time. For datasets with
+many subjects/sessions this leaves most of a workstation's cores (or an
+entire HPC allocation) idle. The goal is to parallelize execution — one full
+pipeline run per recording — using Dask, while keeping today's single-process
+behavior as the default so existing users/configs/tests are unaffected.</p>
+<p>This matches the target architecture in <code>meegflow_architecture_final.svg</code>:
+a <strong>job manager</strong> dispatches one job per recording through a <strong>Dask unified
+scheduler</strong>, either a <strong>local backend</strong> or <strong>dask-jobqueue</strong> (Slurm/PBS/SGE/
+LSF/Condor), producing the same per-recording outputs (data state dict,
+preprocessed files, JSON+HTML reports) as today.</p>
+<h2 id="2-current-architecture">2. Current architecture<a class="headerlink" href="#2-current-architecture" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>flowchart TD
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    CLI[&quot;cli.main()\n(argparse, logging setup)&quot;] --&gt; PL[&quot;MEEGFlowPipeline.__init__\n(build step_functions from\nSTEP_REGISTRY + custom_steps_folder)&quot;]
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    PL --&gt; RP[&quot;MEEGFlowPipeline.run_pipeline()&quot;]
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    RP --&gt; FR[&quot;reader.find_recordings()\n-&gt; list of {paths, metadata, recording_name}&quot;]
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    FR --&gt; LOOP[&quot;sequential &#39;for&#39; loop\n(single process)\nwrapped in one rich.Progress\nover all recordings&quot;]
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    LOOP --&gt; PSR[&quot;self._process_single_recording()\n(instance method, closes over self.reader,\nself.output_root, self.config, self.step_functions)\n+ nested per-step rich.Progress task&quot;]
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    PSR --&gt; READ[&quot;reader.read(paths)\n-&gt; preloaded mne.io.Raw list&quot;]
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    READ --&gt; CTX[&quot;PipelineContext(data, reader, output_root, config)&quot;]
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    CTX --&gt; STEPS[&quot;for step in config[&#39;pipeline&#39;]:\n step_functions[name](ctx, step_config)&quot;]
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    STEPS --&gt; SAVE[&quot;save_clean_instance / generate_json_report /\ngenerate_html_report\n(write under ctx.derivatives_root(...))&quot;]
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    SAVE --&gt; RESULTS[&quot;results dict\n(per recording)&quot;]
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    RESULTS --&gt; AGG[&quot;all_results[subject].append(results)\n(exception caught per-recording,\nbatch continues on failure)&quot;]
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    AGG --&gt; LOOP
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    LOOP --&gt; RETURN[&quot;return all_results\n{subject: [result, ...]}&quot;]
+</code></pre></div>
+<p>Key properties of the current design:
+- Exactly one Python process handles the whole batch; recordings are
+  processed strictly one after another.
+- <code>_process_single_recording</code> is a <strong>bound instance method</strong> — it reads
+  <code>self.reader</code>, <code>self.output_root</code>, <code>self.config</code>, <code>self.step_functions</code>
+  directly. It is not designed to be shipped anywhere; it only ever runs in
+  the calling process.
+- Custom steps are loaded once, in <code>__init__</code>, via <code>importlib.util</code> from
+  <code>.py</code> files named in <code>config['custom_steps_folder']</code>, and stored as
+  entries of <code>self.step_functions</code> (plain function objects living in
+  dynamically created, non-installed modules registered under
+  <code>sys.modules[f"custom_steps.{stem}"]</code>).
+- Progress is reported via two nested <code>rich.Progress</code> bars: one for
+  "recordings processed / total", one for "steps executed / total" <em>within</em>
+  the currently-running recording. Both live-update in the same terminal
+  because everything happens in one process/thread.
+- One recording's exception is caught in <code>run_pipeline</code>'s loop and stored as
+  <code>{'error': str(exc)}</code> in <code>all_results</code>; the batch continues.
+- Output paths are computed from <code>ctx.derivatives_root(subdir)</code>, which is
+  itself a <code>BIDSPath</code>-scoped directory keyed by
+  <code>subject/session/task/acquisition</code> (see <code>steps/output.py</code>). Since
+  <code>reader.find_recordings()</code> already returns one entry per unique
+  <code>(subject, session, task, acquisition)</code> combination, two recordings never
+  write to the same output path — <strong>this holds today and continues to hold
+  under parallel execution</strong>, so no new locking/coordination is needed for
+  writes.</p>
+<h2 id="3-target-architecture">3. Target architecture<a class="headerlink" href="#3-target-architecture" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>flowchart TD
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    subgraph Inputs
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        YAML[&quot;YAML config +\ncustom .py step modules&quot;]
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        FILES[&quot;Data files\n(BIDS or glob)&quot;]
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    end
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    YAML --&gt; PARSE[&quot;Config parser +\nstep loader\n(build_step_functions)&quot;]
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    PARSE --&gt; REG[&quot;Step registry\n(built-in STEP_REGISTRY +\ncustom steps)&quot;]
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    FILES --&gt; READER[&quot;File reader\n(BIDSReader / GlobReader)&quot;]
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    READER --&gt; RECLIST[&quot;Recording list\n(paths + metadata)&quot;]
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    REG --&gt; JM
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    RECLIST --&gt; JM[&quot;Job manager\n(MEEGFlowPipeline.run_pipeline\n+ meegflow.execution dispatch)\norchestration, I/O routing,\nper-recording dispatch&quot;]
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    JM --&gt; SCHED{&quot;Dask unified scheduler\n(ExecutionConfig.backend)&quot;}
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    SCHED --&gt;|&quot;backend: sequential (default)&quot;| SEQ[&quot;In-process loop\n(no Dask; unchanged UX)&quot;]
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    SCHED --&gt;|&quot;backend: local&quot;| LOCAL[&quot;distributed.LocalCluster\n(local backend, comparable to\nProcessPoolExecutor / joblib)&quot;]
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    SCHED --&gt;|&quot;backend: slurm|pbs|sge|lsf|htcondor&quot;| HPC[&quot;dask-jobqueue cluster\n(SLURMCluster, PBSCluster, ...)&quot;]
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    SEQ --&gt; JOBS
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    LOCAL --&gt; JOBS
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>    HPC --&gt; JOBS
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>    JOBS[&quot;N parallel recording jobs\n(one job per recording,\neach running process_recording()\nend to end)&quot;] --&gt; OUT1[&quot;Intermediate state\n(data state dict / PipelineContext)&quot;]
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>    JOBS --&gt; OUT2[&quot;Preprocessed files\n(.fif / epochs / raw)&quot;]
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>    JOBS --&gt; OUT3[&quot;JSON + HTML reports\n(BIDS derivatives)&quot;]
+</code></pre></div>
+<p>Key differences from the current design:
+- The <strong>job manager</strong> (<code>run_pipeline</code> + <code>meegflow.execution</code>) is
+  Dask-backend-agnostic: it builds the recording list and dispatches once
+  per recording regardless of backend.
+- The <strong>unit of work</strong> dispatched per recording is a <strong>module-level,
+  picklable function</strong> (<code>meegflow.pipeline.process_recording</code>), not a bound
+  method. It receives everything it needs as plain arguments (<code>reader</code>,
+  <code>output_root</code>, <code>config</code>, <code>step_functions</code>, <code>paths</code>, <code>metadata</code>,
+  <code>io_backend</code>) rather than closing over <code>self</code>.
+- Each <strong>job independently rebuilds its own step registry</strong>
+  (<code>build_step_functions(config)</code>) from <code>STEP_REGISTRY</code> (repopulated simply
+  by importing <code>meegflow.steps</code>) plus any <code>custom_steps_folder</code> — see §4.3
+  for why this is safer than trying to pickle already-loaded custom step
+  functions across process/host boundaries.
+- Progress reporting no longer assumes a single shared terminal/process —
+  see §4.5.</p>
+<h2 id="4-concrete-change-list">4. Concrete change list<a class="headerlink" href="#4-concrete-change-list" title="Permanent link">&para;</a></h2>
+<h3 id="41-new-module-srcmeegflowexecutionpy">4.1 New module: <code>src/meegflow/execution.py</code><a class="headerlink" href="#41-new-module-srcmeegflowexecutionpy" title="Permanent link">&para;</a></h3>
+<p>Houses the scheduling abstraction — everything Dask-specific lives here, so
+<code>pipeline.py</code> and <code>steps/</code> never need to import <code>dask</code> directly.</p>
+<ul>
+<li><code>ExecutionConfig</code> (dataclass): <code>backend: str = "sequential"</code>,
+  <code>n_workers: int = 1</code>, <code>cluster_kwargs: dict = {}</code>.
+  <code>ExecutionConfig.from_config(config)</code> parses the new <code>execution:</code> block of
+  the YAML pipeline config (see §4.4).</li>
+<li><code>run_sequential(recordings, reader, output_root, config, step_functions,
+  io_backend)</code> — today's single-process loop, moved here essentially
+  unchanged (same <code>rich.Progress</code> bar over recordings, same
+  per-recording <code>try/except</code> isolation). This is what runs when
+  <code>backend == "sequential"</code> (the default), so <strong>default behavior and its
+  output shape are unchanged</strong>.</li>
+<li><code>run_dask(recordings, reader, output_root, config, io_backend,
+  exec_config)</code> — shared code path for both the <code>local</code> backend and every
+  <code>dask-jobqueue</code> backend:</li>
+<li>Builds a <code>distributed.LocalCluster</code> (backend <code>local</code>) or the matching
+    <code>dask_jobqueue.&lt;X&gt;Cluster</code> (backend <code>slurm</code>/<code>pbs</code>/<code>sge</code>/<code>lsf</code>/
+    <code>htcondor</code>), passing <code>cluster_kwargs</code> straight through to the
+    constructor and scaling to <code>n_workers</code>.</li>
+<li>Connects one <code>distributed.Client</code> to that cluster and calls
+    <code>client.submit(_run_recording_job, ...)</code> once per recording — one Dask
+    task == one full pipeline run for one recording, matching "N parallel
+    recording jobs, one job per recording, each running the full pipeline"
+    from the target architecture.</li>
+<li>Gathers results with <code>distributed.as_completed</code>, so <strong>one recording's
+    exception (raised inside the worker and re-raised by <code>future.result()</code>)
+    is caught per-future</strong> exactly like the sequential path's <code>try/except</code>
+    — the batch is not aborted, and the failing recording's entry becomes
+    <code>{'error': str(exc)}</code>, preserving today's <code>all_results</code> contract.</li>
+<li>Logs one line per completed/failed recording
+    (<code>[n/N] Completed &lt;recording_name&gt;</code> / <code>[n/N] Error processing
+    &lt;recording_name&gt;: ...</code>) — see §4.5.</li>
+<li><code>dask</code>/<code>distributed</code>/<code>dask_jobqueue</code> are imported <strong>lazily inside these
+    functions</strong>, not at module import time, so importing <code>meegflow.execution</code>
+    (and therefore <code>meegflow.pipeline</code>) never requires Dask to be installed
+    unless a non-sequential backend is actually requested.</li>
+<li><code>_run_recording_job(reader, output_root, config, paths, metadata,
+  io_backend)</code> — the module-level, picklable function actually submitted to
+  Dask. It locally imports <code>build_step_functions</code> and <code>process_recording</code>
+  from <code>meegflow.pipeline</code> (to avoid a module-level circular import between
+  <code>pipeline.py</code> and <code>execution.py</code>) and calls
+  <code>process_recording(reader=reader, output_root=output_root, config=config,
+  step_functions=build_step_functions(config), paths=paths,
+  metadata=metadata, io_backend=io_backend)</code>.</li>
+</ul>
+<h3 id="42-srcmeegflowpipelinepy">4.2 <code>src/meegflow/pipeline.py</code><a class="headerlink" href="#42-srcmeegflowpipelinepy" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>New module-level function <code>process_recording(reader, output_root,
+  config, step_functions, paths, metadata, io_backend='read_raw_bids')</code></strong> —
+  the former body of <code>_process_single_recording</code>, minus the <code>self</code>/
+  <code>progress</code>/<code>task_id</code> parameters. This is the actual "run the full pipeline
+  for one recording" unit of work, and the only thing that needs to be
+  importable/picklable for <code>dask-jobqueue</code> to ship it to a remote worker
+  process on a completely different host (functions defined as bound
+  methods of an object that itself holds a live <code>reader</code> won't reliably
+  survive that trip; a plain function taking simple, picklable arguments
+  will).</li>
+<li><strong>New module-level function <code>build_step_functions(config) -&gt;
+  Dict[str, Callable]</code></strong> — combines <code>STEP_REGISTRY</code> with any
+  <code>custom_steps_folder</code> steps. <code>MEEGFlowPipeline.__init__</code> now calls this
+  instead of duplicating the "start from STEP_REGISTRY, then update with
+  custom steps" logic inline. Internally it reuses
+  <code>MEEGFlowPipeline._load_custom_steps</code> (which never actually reads <code>self</code>)
+  so the custom-step-loading implementation exists in exactly one place.</li>
+<li><strong>Removed</strong>: the instance method <code>_process_single_recording</code> and the
+  helper <code>_get_pipeline_steps</code> (its one call site moved into
+  <code>process_recording</code>, which now validates <code>config['pipeline']</code> inline).</li>
+<li><code>MEEGFlowPipeline.run_pipeline</code> becomes a thin job manager: find
+  recordings via the reader, parse <code>ExecutionConfig</code> from <code>self.config</code>, and
+  delegate to <code>execution.run_sequential</code> or <code>execution.run_dask</code> — no
+  backend-specific logic lives in <code>pipeline.py</code> itself.</li>
+<li><code>MEEGFlowPipeline.run_step</code> and <code>_load_custom_steps</code> are <strong>unchanged</strong>.</li>
+</ul>
+<h3 id="43-custom-steps-reaching-worker-processes">4.3 Custom steps reaching worker processes<a class="headerlink" href="#43-custom-steps-reaching-worker-processes" title="Permanent link">&para;</a></h3>
+<p>Custom step functions are loaded via <code>importlib.util.spec_from_file_location</code>
+into a dynamically-created module registered as
+<code>sys.modules[f"custom_steps.{stem}"]</code>. That module only exists in whichever
+process ran <code>_load_custom_steps</code> — it is <strong>not</strong> on disk as an installed
+package, so:
+- Standard <code>pickle</code> cannot serialize such a function <em>by reference</em>
+  (there's nothing importable on the receiving end to resolve
+  <code>custom_steps.my_module.my_func</code> against) — this matters most for
+  <code>dask-jobqueue</code>, where workers are separate OS processes on (often)
+  different machines entirely, with no shared <code>sys.modules</code> state.
+- <code>cloudpickle</code> (Dask's default serializer) <em>can</em> often serialize such
+  functions <strong>by value</strong> (shipping the bytecode/closure), which covers the
+  <code>local</code> backend (same filesystem, typically same host) reasonably well —
+  but relying on that is fragile and version-sensitive, and doesn't help at
+  all if the custom steps folder isn't present on the worker's filesystem
+  for any file-based side effects the custom step might have (e.g. reading
+  a bundled data file relative to its own location).</p>
+<p><strong>Decision implemented:</strong> rather than trying to serialize already-loaded
+custom step <em>function objects</em> across the wire, each worker independently
+calls <code>build_step_functions(config)</code> — i.e. it <strong>re-runs
+<code>_load_custom_steps(config['custom_steps_folder'])</code> itself</strong>, from its own
+filesystem. <code>config</code> (a plain dict of YAML-loaded values, including the
+<code>custom_steps_folder</code> <em>path string</em>) is trivially picklable. This means:
+- For the <code>local</code> backend, the custom steps folder just needs to exist on
+  the same machine (true by construction — <code>LocalCluster</code> workers are local
+  processes).
+- For <code>dask-jobqueue</code> backends, <strong>the custom steps folder must be on a
+  filesystem shared with (or otherwise reachable from) the compute nodes</strong>
+  — the same requirement HPC users already have for the BIDS dataset itself.
+  This is called out in the docs (§ "Custom steps on a cluster") rather than
+  silently assumed.</p>
+<h3 id="44-new-config-surface">4.4 New config surface<a class="headerlink" href="#44-new-config-surface" title="Permanent link">&para;</a></h3>
+<p>A new, optional, top-level <code>execution:</code> block in the YAML config (parsed by
+<code>ExecutionConfig.from_config</code>), analogous to the existing
+<code>custom_steps_folder</code> top-level key:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">execution</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span><span class="w">          </span><span class="c1"># sequential (default) | local | slurm | pbs | sge | lsf | htcondor</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">n_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">cluster_kwargs</span><span class="p">:</span><span class="w">          </span><span class="c1"># forwarded verbatim to the underlying Dask/dask-jobqueue constructor</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">normal</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">cores</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16GB</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nt">walltime</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;02:00:00&quot;</span>
+</code></pre></div>
+<p>If <code>execution</code> is omitted entirely, behavior is 100% identical to today
+(<code>backend: sequential</code>, single process, same <code>rich.Progress</code> UX).</p>
+<p><strong>No new CLI flags were added.</strong> <code>custom_steps_folder</code> — the closest
+existing precedent for "infrastructure, not per-run filter" configuration —
+is YAML-only, not exposed as a CLI flag either, and <code>cluster_kwargs</code> is an
+open-ended nested mapping that maps far more naturally to YAML than to
+<code>argparse</code> flags. This is flagged explicitly as a judgment call in §5 in
+case a human reviewer prefers <code>--execution-backend</code> / <code>--n-workers</code> CLI
+overrides for convenience.</p>
+<h3 id="45-progress-reporting">4.5 Progress reporting<a class="headerlink" href="#45-progress-reporting" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>sequential</code> backend (default):</strong> unchanged — single <code>rich.Progress</code> bar
+  over "recordings processed / total". The previous <em>nested</em> per-step
+  progress bar (steps within the current recording) was <strong>removed</strong>: it
+  existed only because <code>_process_single_recording</code> accepted a
+  <code>progress</code>/<code>task_id</code> pair to update a second, per-step task, and that
+  coupling is exactly what stood in the way of making the per-recording unit
+  of work a plain, picklable function. Per-step detail is still available at
+  <code>logger.info("Executing step: ...")</code> granularity (unchanged). This
+  simplification is called out explicitly in §5 as a UX trade-off a human
+  should sign off on.</li>
+<li><strong><code>local</code> / <code>dask-jobqueue</code> backends:</strong> a live, nested, in-place-updating
+  progress bar cannot meaningfully represent state that's actually changing
+  inside other OS processes (or other machines, for <code>dask-jobqueue</code>).
+  Instead, <code>run_dask</code> logs one line per submission and one line per
+  completed/failed recording, with a running <code>[n/N]</code> counter, via the
+  existing MNE logger (<code>logger.info</code> / <code>logger.error</code>) — consistent with
+  the project's existing logging conventions and with <code>--log-file</code>. Dask's
+  own dashboard link (<code>client.dashboard_link</code>) is also logged once, for
+  users who want the richer live view Dask itself provides.</li>
+</ul>
+<h3 id="46-setuppy">4.6 <code>setup.py</code><a class="headerlink" href="#46-setuppy" title="Permanent link">&para;</a></h3>
+<p><code>dask</code>/<code>dask-jobqueue</code> are added as <code>extras_require</code>, <strong>not</strong> as hard
+<code>install_requires</code>, so users who only need sequential execution (today's
+only mode, still the default) are not forced to install Dask:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">extras_require</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="s2">&quot;dask&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;dask[distributed]&gt;=2024.1.0&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="s2">&quot;dask-jobqueue&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;dask[distributed]&gt;=2024.1.0&quot;</span><span class="p">,</span> <span class="s2">&quot;dask-jobqueue&gt;=0.8.2&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">},</span>
+</code></pre></div>
+<p><code>pip install meegflow[dask]</code> covers the <code>local</code> backend;
+<code>pip install meegflow[dask-jobqueue]</code> covers Slurm/PBS/SGE/LSF/HTCondor.
+Requesting a non-sequential backend without the corresponding extra raises a
+clear <code>ImportError</code> at cluster-construction time (not at <code>import meegflow</code>
+time), naming the exact <code>pip install</code> command to run.</p>
+<h3 id="47-failure-isolation-preserved">4.7 Failure isolation preserved<a class="headerlink" href="#47-failure-isolation-preserved" title="Permanent link">&para;</a></h3>
+<p>Both <code>run_sequential</code> and <code>run_dask</code> preserve "one recording's failure does
+not abort the batch": the sequential path already wraps each iteration in
+<code>try/except</code>; the Dask path wraps each <code>future.result()</code> call (which
+re-raises whatever exception happened inside the worker) in the same
+<code>try/except</code>, inside the <code>as_completed</code> loop, so a <code>distributed.Future</code>
+raising doesn't stop iteration over the remaining futures.</p>
+<h2 id="5-things-that-need-review-before-implementing">5. Things that need review before implementing<a class="headerlink" href="#5-things-that-need-review-before-implementing" title="Permanent link">&para;</a></h2>
+<p>These are judgment calls made in this design that a human reviewer should
+explicitly confirm or override before the branch is merged/pushed:</p>
+<ol>
+<li><strong>Default stays sequential, opt-in for parallel.</strong> Implemented as
+   described. Confirm this is the desired default (vs., e.g., auto-detecting
+   available cores and defaulting to <code>local</code> with some worker count).</li>
+<li><strong><code>dask</code>/<code>dask-jobqueue</code> as optional extras, not hard dependencies.</strong>
+   Implemented as described. Confirm the extras split (<code>dask</code> vs.
+   <code>dask-jobqueue</code>) matches how you expect users to install this — an
+   alternative would be a single <code>meegflow[parallel]</code> extra bundling both.</li>
+<li><strong>Per-step progress bar removed for the sequential path.</strong> Kept the
+   top-level "recordings processed / total" bar, dropped the nested
+   per-step bar. Confirm this simplification is acceptable, or whether the
+   per-step bar should be preserved for the sequential backend specifically
+   (which <em>could</em> keep it, since it never has to cross a process boundary —
+   at the cost of <code>process_recording</code> needing an optional callback
+   parameter and slightly more coupling between "run the pipeline" and
+   "report progress").</li>
+<li><strong>No CLI flags for backend/n_workers/cluster_kwargs — YAML-only.</strong>
+   Confirm, or request <code>--execution-backend</code>/<code>--n-workers</code> CLI overrides
+   layered on top of the YAML config (CLI would need to win over YAML if
+   both given).</li>
+<li><strong>Per-worker memory footprint / worker count is entirely user-specified</strong>
+   (<code>n_workers</code> in the config), with no automatic capping based on available
+   RAM or recording size. EEG/MEG recordings preloaded into memory can be
+   large; running <code>n_workers</code> of them concurrently multiplies peak memory
+   use roughly by <code>n_workers</code>. This design does not add any automatic
+   guard rail (e.g. capping <code>n_workers</code> by <code>os.cpu_count()</code> or available
+   RAM) — confirm whether that's in scope now or an explicit follow-up, and
+   whether docs alone (recommend starting conservative, watch memory) are
+   sufficient for v1.</li>
+<li><strong>Cluster-specific parameters (<code>queue</code>, <code>cores</code>, <code>memory</code>, <code>walltime</code>,
+   etc.) are passed through <code>cluster_kwargs</code> unvalidated</strong> — MEEGFlow does
+   not validate that the caller supplied the parameters a given
+   <code>dask_jobqueue.&lt;X&gt;Cluster</code> actually requires; any error surfaces as
+   whatever <code>dask-jobqueue</code> itself raises. Confirm this "thin passthrough,
+   no schema validation" scope is acceptable for v1, or whether
+   per-scheduler required-field validation is wanted (documented here as a
+   deliberately deferred future extension either way).</li>
+<li><strong>Custom steps + <code>dask-jobqueue</code> require a shared/reachable filesystem</strong>
+   for <code>custom_steps_folder</code> across the scheduler and all compute nodes
+   (§4.3). This is a real operational constraint for HPC users, documented
+   but not otherwise enforced or checked at submission time.</li>
+<li><strong>No real HPC cluster was available to test against</strong> in this
+   environment. <code>SLURMCluster</code>/etc. construction is covered by unit tests
+   that mock <code>dask_jobqueue</code>, and the <code>local</code> backend is exercised against
+   a real (small) <code>distributed.LocalCluster</code>, but the <code>dask-jobqueue</code> code
+   path has not been run against an actual Slurm/PBS/SGE/LSF/HTCondor
+   scheduler. Flagged as a follow-up for whoever has access to such a
+   cluster.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
