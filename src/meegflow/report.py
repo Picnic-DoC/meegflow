@@ -1,5 +1,5 @@
 """
-Report Generation Utilities for EEG Preprocessing Pipeline.
+Report Generation Utilities for MEEG Preprocessing Pipeline.
 
 This module provides helper functions for generating HTML reports with
 interactive visualizations and detailed preprocessing information.
@@ -71,7 +71,7 @@ import mne
 from mne_bids import BIDSPath
 from mne.utils import logger
 import matplotlib.pyplot as plt
-from .utils import NpEncoder
+from .utils import NpEncoder, infer_datatype
 
 
 def collect_bad_channels_from_steps(preprocessing_steps: List[Dict[str, Any]]) -> List[str]:
@@ -346,6 +346,40 @@ def create_preprocessing_steps_table(preprocessing_steps: List[Dict[str, Any]]) 
     return html_content
 
 
+def _resolve_report_datatype(
+    data: Dict[str, Any],
+    step_config: Dict[str, Any],
+) -> str:
+    """Determine the BIDS datatype a report is filed under.
+
+    An explicit ``step_config['datatype']`` wins; otherwise the datatype is
+    read off the data being reported, so an MEG recording is not filed under
+    ``eeg``. Falls back to ``'eeg'`` when neither a raw nor an epochs
+    instance is available, which is what the reports assumed before.
+
+    Parameters
+    ----------
+    data : dict
+        Pipeline data dict, inspected for ``'raw'`` and then ``'epochs'``.
+    step_config : dict
+        Step parameters. Recognizes ``datatype``.
+
+    Returns
+    -------
+    str
+        BIDS datatype to pass to ``BIDSPath``.
+    """
+    datatype = step_config.get('datatype', None)
+    if datatype is not None:
+        return datatype
+
+    inst = data.get('raw', None)
+    if inst is None:
+        inst = data.get('epochs', None)
+
+    return infer_datatype(inst)
+
+
 def generate_json_report(
     data: Dict[str, Any],
     step_config: Dict[str, Any],
@@ -362,7 +396,8 @@ def generate_json_report(
         Pipeline data dict containing at minimum ``'subject'``, ``'task'``, and
         ``'preprocessing_steps'``.
     step_config : dict
-        Currently unused; reserved for future options.
+        Step parameters. Recognizes ``datatype``: the BIDS datatype the report
+        is filed under. If omitted, it is read off the data being reported.
     deriv_root : Path
         Derivatives root under which the report is written.
 
@@ -392,7 +427,7 @@ def generate_json_report(
         task=data['task'],
         session=data.get('session', None),
         acquisition=data.get('acquisition', None),
-        datatype="eeg",
+        datatype=_resolve_report_datatype(data, step_config),
         root=deriv_root,
         suffix="report",
         extension=".json",
@@ -428,8 +463,8 @@ def generate_html_report(
         Pipeline data dict containing at minimum ``'subject'``, ``'task'``, and
         ``'preprocessing_steps'``.
     step_config : dict
-        Step parameters (picks, excluded_channels, outlines, compare_instances,
-        and the various plot_*_kwargs).
+        Step parameters (datatype, picks, excluded_channels, outlines,
+        compare_instances, and the various plot_*_kwargs).
     get_picks : callable
         ``get_picks(info, picks_params, excluded_channels) -> list[int]`` used to
         select channels for the figures.
@@ -738,7 +773,7 @@ def generate_html_report(
         task=data['task'],
         session=data.get('session', None),
         acquisition=data.get('acquisition', None),
-        datatype="eeg",
+        datatype=_resolve_report_datatype(data, step_config),
         root=deriv_root,
         suffix="report",
         extension=".html",

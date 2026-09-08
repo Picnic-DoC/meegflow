@@ -3,6 +3,7 @@ from mne.utils import logger
 from mne_bids import BIDSPath
 from .registry import register
 from ..savers import SAVERS as _SAVERS, FORMAT_EXTENSIONS as _FORMAT_EXTENSIONS
+from ..utils import infer_datatype
 
 
 @register("save_clean_instance")
@@ -22,7 +23,9 @@ def save_clean_instance(data, step_config):
               ``'numpy'``. Auto-detected if omitted.
             - ``overwrite`` (bool): Overwrite existing file. Default ``True``.
             - ``processing``, ``description``, ``datatype``, ``suffix``,
-              ``extension``: BIDS path components (all optional).
+              ``extension``: BIDS path components (all optional). If omitted,
+              ``suffix`` is ``'epo'`` for epochs and the datatype of the data
+              being saved (``'eeg'``, ``'meg'``, ...) for a raw recording.
 
     Returns:
         Updated data dict with ``data['{instance}_file']`` set to the saved
@@ -57,12 +60,14 @@ def save_clean_instance(data, step_config):
 
     saver = _SAVERS[fmt]
 
-    # Default BIDS suffix based on instance type
+    # Default BIDS suffix based on instance type. For a raw recording BIDS
+    # names the file after its datatype, so it is read off the data rather
+    # than assumed to be EEG.
     if suffix is None:
         if instance == 'epochs':
             suffix = 'epo'
         elif instance == 'raw':
-            suffix = 'eeg'
+            suffix = infer_datatype(obj)
 
     # Default extension from format — required when using a custom callable
     if extension is None:
