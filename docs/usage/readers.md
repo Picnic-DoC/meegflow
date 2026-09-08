@@ -47,6 +47,27 @@ results = pipeline.run_pipeline(
 )
 ```
 
+### Selecting the datatype
+
+The BIDS reader searches one datatype at a time: `eeg`, `meg`, `ieeg` or
+`nirs`. If you do not name one, it is detected from the dataset with
+`mne_bids.get_datatypes`, with `eeg` preferred whenever the dataset contains
+EEG. Name it explicitly to process another datatype, or to disambiguate a
+dataset that holds several:
+
+```bash
+meegflow --bids-root /path/to/bids --datatype meg --extension .fif --config config.yaml
+```
+
+```python
+reader = BIDSReader('/path/to/bids', datatype='meg')
+```
+
+The BIDS suffix follows the datatype (`sub-01_task-rest_meg.fif`), and can be
+overridden with the reader's `suffix` argument. `--extension` is not derived
+from the datatype: MEG recordings in FIF format need `--extension .fif`, since
+the default is the BrainVision `.vhdr`.
+
 ## GlobReader
 
 The glob reader allows you to work with custom directory structures by specifying a glob pattern with variable placeholders.
