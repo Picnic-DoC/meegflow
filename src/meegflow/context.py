@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Union
 
 import mne
+from .defaults import DEFAULT_PICKS, resolve_datatype
 from mne.utils import logger
 
 if False:  # typing-only, avoids an import cycle
@@ -38,6 +39,11 @@ class PipelineContext(MutableMapping):
     # ------------------------------------------------------------------ #
     # Services (ported verbatim from MEEGFlowPipeline)                   #
     # ------------------------------------------------------------------ #
+
+    @property
+    def datatype(self) -> str:
+        """The configuration's top-level ``datatype`` (``'eeg'`` unless set)."""
+        return resolve_datatype(self.config)
 
     @property
     def dataset_root(self) -> Path:
@@ -111,7 +117,9 @@ class PipelineContext(MutableMapping):
         info : mne.Info
             MNE info object containing channel information
         picks_params : list, tuple, or None
-            Channel type specification (e.g., ['eeg'], ['eeg', 'eog'])
+            Channel type specification (e.g., ['eeg'], ['eeg', 'eog']). If None,
+            the channels of the top-level ``datatype``: EEG by default, MEG
+            (without reference channels) when ``datatype: meg``.
         excluded_channels : list of str, optional
             List of channel names to exclude from picks
             
@@ -120,7 +128,8 @@ class PipelineContext(MutableMapping):
         picks : list of int
             Channel indices, excluding 'bads' and any specified excluded_channels
         """
-        # Compute picks if provided, otherwise return all EEG channels
+        # Compute picks if provided, otherwise the default channels of the
+        # configuration's datatype (EEG unless the top-level datatype is meg)
         if isinstance(picks_params, (list, tuple)):
             picks = mne.pick_types(
                 info,
@@ -128,13 +137,7 @@ class PipelineContext(MutableMapping):
                 **{ch_type: True for ch_type in picks_params}
             )
         else:
-            picks = mne.pick_types(
-                info,
-                exclude='bads',
-                eeg=True,
-                eog=False,
-                meg=False
-            )
+            picks = mne.pick_types(info, exclude='bads', **DEFAULT_PICKS[self.datatype])
         
         # Apply excluded_channels filter
         picks = self._apply_excluded_channels(info, picks, excluded_channels)

@@ -4,6 +4,7 @@ from mne_bids import BIDSPath
 from .registry import register
 from ..savers import SAVERS as _SAVERS, FORMAT_EXTENSIONS as _FORMAT_EXTENSIONS
 from ..utils import infer_datatype
+from ..defaults import configured_datatype
 
 
 @register("save_clean_instance")
@@ -25,7 +26,8 @@ def save_clean_instance(data, step_config):
             - ``processing``, ``description``, ``datatype``, ``suffix``,
               ``extension``: BIDS path components (all optional). If omitted,
               ``suffix`` is ``'epo'`` for epochs and the datatype of the data
-              being saved (``'eeg'``, ``'meg'``, ...) for a raw recording.
+              being saved (``'eeg'``, ``'meg'``, ...) for a raw recording, and
+              ``datatype`` is the configuration's top-level ``datatype`` if set.
 
     Returns:
         Updated data dict with ``data['{instance}_file']`` set to the saved
@@ -39,7 +41,7 @@ def save_clean_instance(data, step_config):
     overwrite = step_config.get('overwrite', True)
     processing = step_config.get('processing', None)
     description = step_config.get('description', None)
-    datatype = step_config.get('datatype', None)
+    datatype = step_config.get('datatype', configured_datatype(getattr(data, 'config', None)))
     suffix = step_config.get('suffix', None)
     extension = step_config.get('extension', None)
     fmt = step_config.get('format', None)
@@ -67,7 +69,7 @@ def save_clean_instance(data, step_config):
         if instance == 'epochs':
             suffix = 'epo'
         elif instance == 'raw':
-            suffix = infer_datatype(obj)
+            suffix = configured_datatype(getattr(data, 'config', None)) or infer_datatype(obj)
 
     # Default extension from format — required when using a custom callable
     if extension is None:

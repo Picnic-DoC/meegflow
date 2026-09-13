@@ -2,6 +2,75 @@ import numpy as np
 import mne
 from .registry import register
 from . import adaptive_reject
+from ..defaults import DEFAULT_REJECT, FLAT_VARIANCE, FLAT_VARIANCE_FALLBACK
+from mne.utils import logger
+
+
+def _datatype(data):
+    """Top-level datatype of the run (``'eeg'`` for a plain data dict)."""
+    return getattr(data, 'datatype', 'eeg')
+
+
+def _group_picks_by_type(info, picks):
+    """Split channel indices by channel type, keeping their order."""
+    ch_types = info.get_channel_types()
+    groups = {}
+    for p in picks:
+        groups.setdefault(ch_types[p], []).append(int(p))
+    return groups
+
+
+def _detect_per_channel_type(detect, inst, picks, zscore_thresh, max_iter):
+    """Run a z-score detector separately on each channel type in ``picks``.
+
+    Channel types are recorded in different units and at different scales
+    (Neuromag magnetometer and gradiometer variances differ by about three
+    orders of magnitude), so pooling them into one z-score hides outliers
+    within a type. A type with a single channel cannot be an outlier among
+    its own kind and is skipped.
+    """
+    bad_chs, by_type = [], {}
+    for ch_type, idx in _group_picks_by_type(inst.info, picks).items():
+        if len(idx) < 2:
+            logger.info(f"Skipping channel type '{ch_type}': fewer than 2 channels")
+            continue
+        found = sorted(detect(inst, idx, zscore_thresh, max_iter), key=inst.ch_names.index)
+        by_type[ch_type] = found
+        bad_chs.extend(ch for ch in found if ch not in bad_chs)
+    return bad_chs, by_type
+
+
+def _flat_thresholds(ch_types, threshold):
+    """Variance threshold of each picked channel, and a record of what was used.
+
+    ``threshold`` may be a number (one threshold for every channel), a dict
+    by channel type (types not listed use the defaults), or None (the
+    per-type defaults).
+    """
+    if threshold is not None and not isinstance(threshold, dict):
+        return np.full(len(ch_types), float(threshold)), threshold
+    per_type = dict(FLAT_VARIANCE)
+    per_type.update(threshold or {})
+    used = {t: per_type.get(t, FLAT_VARIANCE_FALLBACK) for t in dict.fromkeys(ch_types)}
+    return np.array([used[t] for t in ch_types]), used
+
+
+def _usable_reject(data, info, picks, reject):
+    """Rejection thresholds restricted to the channel types among ``picks``.
+
+    With ``reject`` omitted, the thresholds of the top-level datatype are
+    used. A threshold for a type with no picked channel is dropped rather
+    than passed on, since it has nothing to act on.
+    """
+    if reject is None:
+        reject = DEFAULT_REJECT[_datatype(data)]
+    present = set(_group_picks_by_type(info, picks))
+    usable = {t: v for t, v in reject.items() if t in present}
+    dropped = sorted(set(reject) - set(usable))
+    if dropped:
+        logger.warning(f"No picked channels of type {dropped}; their rejection thresholds are ignored")
+    return usable
+
 
 
 @register("find_flat_channels")
@@ -18,9 +87,12 @@ def find_flat_channels(data, step_config):
         Channel types to analyze (default: all MEEG channels)
     excluded_channels : list, optional
         Channel names to exclude from analysis (e.g., reference channels)
-    threshold : float, optional
-        Variance threshold below which channels are considered flat
-        (default: 1e-12)
+    threshold : float or dict, optional
+        Variance below which a channel is considered flat, in SI units
+        squared. A number applies to every picked channel; a dict gives one
+        threshold per channel type. By default (or for types missing from a
+        dict): 1e-30 for magnetometers and MEG reference channels, 1e-26 for
+        gradiometers, and 1e-12 for every other type (EEG, EOG, ...)
     
     Updates
     -------
@@ -39,7 +111,7 @@ def find_flat_channels(data, step_config):
 
     picks_params = step_config.get('picks', None)
     excluded_channels = step_config.get('excluded_channels', None)
-    threshold = step_config.get('threshold', 1e-12)
+    threshold = step_config.get('threshold', None)
     
     # Get picks with exclusions
     picks = data.get_picks(data['raw'].info, picks_params, excluded_channels)
@@ -47,7 +119,9 @@ def find_flat_channels(data, step_config):
     # Get data only for selected picks
     raw_data = data['raw'].get_data(picks=picks)
     variances = raw_data.var(axis=1)
-    flat_idx = np.where(variances < threshold)[0]
+    ch_types = [data['raw'].get_channel_types()[p] for p in picks]
+    thresholds, threshold_used = _flat_thresholds(ch_types, threshold)
+    flat_idx = np.where(variances < thresholds)[0]
     # Map back to channel names using picks
     flat_chs = [data['raw'].ch_names[picks[i]] for i in flat_idx]
     
@@ -60,7 +134,7 @@ def find_flat_channels(data, step_config):
         'picks': picks_params,
         'excluded_channels': excluded_channels,
         'apply_on': ['raw'],
-        'threshold': threshold,
+        'threshold': threshold_used,
         'bad_channels': flat_chs,
         'n_bad_channels': len(flat_chs)
     })
@@ -82,7 +156,9 @@ def find_bads_channels_threshold(data, step_config):
             - ``picks`` (list|None): Channel types to consider. Default all.
             - ``excluded_channels`` (list|None): Channels to skip.
             - ``reject`` (dict): Amplitude thresholds per channel type,
-              e.g. ``{'eeg': 100e-6}``. Default ``{'eeg': 100e-6}``.
+              e.g. ``{'eeg': 100e-6}``. Default: from the top-level
+              ``datatype``, ``{'eeg': 100e-6}`` for EEG and
+              ``{'mag': 4e-12, 'grad': 4e-10}`` for MEG.
             - ``n_epochs_bad_ch`` (float): Fraction of epochs in which a
               channel must exceed the threshold to be marked bad. Default 0.5.
             - ``apply_on`` (list): Instances to mark bad channels on.
@@ -99,7 +175,7 @@ def find_bads_channels_threshold(data, step_config):
 
     picks_params = step_config.get('picks', None)
     excluded_channels = step_config.get('excluded_channels', None)
-    reject = step_config.get('reject', {'eeg': 100e-6})
+    reject = step_config.get('reject', None)
     n_epochs_bad_ch = step_config.get('n_epochs_bad_ch', 0.5)
     apply_on = step_config.get('apply_on', ['epochs'])
 
@@ -111,9 +187,10 @@ def find_bads_channels_threshold(data, step_config):
 
     picks = data.get_picks(data['epochs'].info, picks_params, excluded_channels)
 
+    reject = _usable_reject(data, data['epochs'].info, picks, reject)
     bad_chs = adaptive_reject.find_bads_channels_threshold(
         data['epochs'], picks, reject, n_epochs_bad_ch
-    )
+    ) if reject else []
 
     if bad_chs:
         for instance_to_apply in apply_on:
@@ -179,7 +256,8 @@ def find_bads_channels_variance(data, step_config):
 
     picks = data.get_picks(data[instance].info, picks_params, excluded_channels)
 
-    bad_chs = adaptive_reject.find_bads_channels_variance(
+    bad_chs, bad_chs_by_type = _detect_per_channel_type(
+        adaptive_reject.find_bads_channels_variance,
         data[instance], picks, zscore_thresh, max_iter
     )
 
@@ -190,6 +268,7 @@ def find_bads_channels_variance(data, step_config):
 
     data['preprocessing_steps'].append({
         'step': 'find_bads_channels_variance',
+        'bad_channels_by_type': bad_chs_by_type,
         'instance': instance,
         'picks': picks_params,
         'excluded_channels': excluded_channels,
@@ -249,7 +328,8 @@ def find_bads_channels_high_frequency(data, step_config):
 
     picks = data.get_picks(data[instance].info, picks_params, excluded_channels)
 
-    bad_chs = adaptive_reject.find_bads_channels_high_frequency(
+    bad_chs, bad_chs_by_type = _detect_per_channel_type(
+        adaptive_reject.find_bads_channels_high_frequency,
         data[instance], picks, zscore_thresh, max_iter
     )
 
@@ -260,6 +340,7 @@ def find_bads_channels_high_frequency(data, step_config):
 
     data['preprocessing_steps'].append({
         'step': 'find_bads_channels_high_frequency',
+        'bad_channels_by_type': bad_chs_by_type,
         'instance': instance,
         'picks': picks_params,
         'excluded_channels': excluded_channels,
@@ -286,7 +367,9 @@ def find_bads_epochs_threshold(data, step_config):
             - ``picks`` (list|None): Channel types to consider. Default all.
             - ``excluded_channels`` (list|None): Channels to skip.
             - ``reject`` (dict): Amplitude thresholds per channel type.
-              Default ``{'eeg': 100e-6}``.
+              Default: from the top-level
+              ``datatype``, ``{'eeg': 100e-6}`` for EEG and
+              ``{'mag': 4e-12, 'grad': 4e-10}`` for MEG.
             - ``n_channels_bad_epoch`` (float): Fraction of channels that
               must exceed the threshold for an epoch to be dropped.
               Default 0.1.
@@ -302,14 +385,15 @@ def find_bads_epochs_threshold(data, step_config):
 
     picks_params = step_config.get('picks', None)
     excluded_channels = step_config.get('excluded_channels', None)
-    reject = step_config.get('reject', {'eeg': 100e-6})
+    reject = step_config.get('reject', None)
     n_channels_bad_epoch = step_config.get('n_channels_bad_epoch', 0.1)
 
     picks = data.get_picks(data['epochs'].info, picks_params, excluded_channels)
 
+    reject = _usable_reject(data, data['epochs'].info, picks, reject)
     bad_epochs = adaptive_reject.find_bads_epochs_threshold(
         data['epochs'], picks, reject, n_channels_bad_epoch
-    )
+    ) if reject else np.array([], dtype=int)
 
     # Drop bad epochs
     if len(bad_epochs) > 0:

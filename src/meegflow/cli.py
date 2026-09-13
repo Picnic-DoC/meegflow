@@ -44,7 +44,8 @@ Reader selection:
   --data-root         Path to data root (required for glob reader)
   --glob-pattern      Glob pattern with {variable} placeholders (required for glob reader)
   --datatype          BIDS datatype to process: eeg, meg, ieeg or nirs
-                      (BIDS reader only; detected from the dataset if omitted)
+                      (BIDS reader only; defaults to the config's top-level
+                      datatype, otherwise detected from the dataset)
 
 Optional filters (if not specified, all matching files are processed):
   --subjects          Subject ID(s) to process
@@ -52,7 +53,7 @@ Optional filters (if not specified, all matching files are processed):
   --tasks             Task name(s) to process
   --acquisitions      Acquisition parameter(s) to process
   --runs              Run ID(s) to process
-  --extension         File extension (default: .vhdr; use .fif for MEG)
+  --extension         File extension (default: .fif for MEG, .vhdr otherwise)
 
 Other options:
   --output-root       Custom output path (default: bids-root/derivatives/meegflow)
@@ -69,6 +70,7 @@ from pathlib import Path
 from mne.utils import logger, set_log_file, set_log_level
 from .pipeline import MEEGFlowPipeline
 from .utils import NpEncoder
+from .defaults import resolve_datatype
 
 def _parse_args():
     parser = argparse.ArgumentParser(description='Run MEEG preprocessing pipeline on one or more subjects.')
@@ -137,8 +139,8 @@ def _parse_args():
     parser.add_argument(
         '--extension',
         type=str,
-        default='.vhdr',
-        help='File extension to process.'
+        default=None,
+        help='File extension to process (default: .fif when the datatype is meg, .vhdr otherwise).'
     )
     parser.add_argument(
         '--io-backend',
@@ -184,7 +186,7 @@ def main():
         logger.info(f"BIDS root: {args.bids_root}")
         
         from .readers import BIDSReader
-        reader = BIDSReader(args.bids_root, datatype=args.datatype)
+        reader = BIDSReader(args.bids_root, datatype=args.datatype or config.get('datatype'))
         
     elif args.reader == 'glob':
         if not args.data_root:
@@ -209,6 +211,12 @@ def main():
     for arg, value in vars(args).items():
         logger.info(f"  {arg}: {value}")
     
+    # The default extension follows the datatype: FIF for MEG, BrainVision otherwise.
+    extension = args.extension
+    if extension is None:
+        datatype = args.datatype or resolve_datatype(config)
+        extension = '.fif' if datatype == 'meg' else '.vhdr'
+
     # Create pipeline with reader
     pipeline = MEEGFlowPipeline(
         reader=reader,
@@ -221,7 +229,7 @@ def main():
         tasks=args.tasks,
         acquisitions=args.acquisitions,
         runs=args.runs,
-        extension=args.extension,
+        extension=extension,
         io_backend=args.io_backend
     )
 

@@ -72,6 +72,7 @@ from mne_bids import BIDSPath
 from mne.utils import logger
 import matplotlib.pyplot as plt
 from .utils import NpEncoder, infer_datatype
+from .defaults import configured_datatype
 
 
 def collect_bad_channels_from_steps(preprocessing_steps: List[Dict[str, Any]]) -> List[str]:
@@ -372,6 +373,10 @@ def _resolve_report_datatype(
     datatype = step_config.get('datatype', None)
     if datatype is not None:
         return datatype
+
+    configured = configured_datatype(getattr(data, 'config', None))
+    if configured is not None:
+        return configured
 
     inst = data.get('raw', None)
     if inst is None:
