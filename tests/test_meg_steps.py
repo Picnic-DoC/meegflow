@@ -41,11 +41,15 @@ mne.set_log_level('ERROR')
 
 
 def _testing_path():
+    """The MNE testing dataset, or None if it has not been downloaded."""
     try:
-        path = mne.datasets.testing.data_path(download=False)
+        path = Path(mne.datasets.testing.data_path(download=False))
     except Exception:  # pragma: no cover - depends on the environment
         return None
-    return Path(path) if path and Path(path).exists() else None
+    # data_path returns an empty path, not None, when the dataset is missing,
+    # and Path('') is the current directory, so check for an actual recording.
+    sample = path / 'MEG' / 'sample' / 'sample_audvis_trunc_raw.fif'
+    return path if str(path) not in ('', '.') and sample.exists() else None
 
 
 TESTING = _testing_path()
