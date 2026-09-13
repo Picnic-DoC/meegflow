@@ -12,6 +12,7 @@ from . import (  # noqa: F401  (imported for their registration side effects)
     bad_detection,
     epoching,
     output,
+    meg,
 )
 
 __all__ = ["STEP_REGISTRY", "register"]
