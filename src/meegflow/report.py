@@ -112,6 +112,17 @@ def collect_bad_channels_from_steps(preprocessing_steps: List[Dict[str, Any]]) -
     return unique_bad_channels
 
 
+# Sensor types that get a bad-channel map, with the title of each panel.
+_TOPOPLOT_CH_TYPES = (('eeg', 'EEG'), ('mag', 'Magnetometers'), ('grad', 'Gradiometers'))
+
+
+def _picks_of_type(info: mne.Info, ch_type: str) -> np.ndarray:
+    """Indices of all channels of one sensor type (bad ones included)."""
+    if ch_type == 'eeg':
+        return mne.pick_types(info, meg=False, eeg=True, exclude=[])
+    return mne.pick_types(info, meg=ch_type, ref_meg=False, exclude=[])
+
+
 def create_bad_channels_topoplot(
     info: mne.Info,
     bad_channels: List[str],
@@ -119,89 +130,96 @@ def create_bad_channels_topoplot(
     figsize: tuple = (8, 6)
 ) -> Optional[plt.Figure]:
     """
-    Create a topoplot showing bad channels marked with red crosses.
-    
-    Uses the montage from the info object to determine the appropriate
-    head shape and electrode positions.
-    
+    Create a topoplot showing the bad channels of each sensor type.
+
+    One panel is drawn for each sensor type that has at least one bad
+    channel. EEG electrodes are drawn as a topomap, with red crosses on the
+    bad channels, using the montage stored in ``info``. Magnetometers and
+    gradiometers are drawn from their sensor definitions with
+    :func:`mne.viz.plot_sensors`, which shows the bad sensors in red; a
+    topomap cannot place planar gradiometer pairs without merging them.
+
     Parameters
     ----------
     info : mne.Info
-        MNE Info object containing channel information and montage.
+        MNE Info object containing channel information and positions.
     bad_channels : list of str
         List of bad channel names to mark on the topoplot.
     outlines : dict or None, optional
-        Dictionary defining head shape outlines. Default is None.
+        Dictionary defining head shape outlines for the EEG panel.
+        Default is None.
     figsize : tuple, optional
-        Figure size (width, height) in inches. Default is (8, 6).
-    
+        Figure size (width, height) in inches for one panel. Default is (8, 6).
+
     Returns
     -------
     fig : matplotlib.figure.Figure or None
-        Figure containing the topoplot, or None if creation failed.
+        Figure containing the topoplot, or None if no bad channel is an EEG
+        or MEG sensor.
     """
 
     if not bad_channels:
         logger.info("No bad channels to plot")
         return None
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
-    
-    # Get all EEG channel positions
-    eeg_picks = mne.pick_types(info, eeg=True, exclude=[])
+    panels = []
+    for ch_type, title in _TOPOPLOT_CH_TYPES:
+        picks = _picks_of_type(info, ch_type)
+        bad_here = [info['ch_names'][p] for p in picks if info['ch_names'][p] in bad_channels]
+        if bad_here:
+            panels.append((ch_type, title, picks, bad_here))
 
-    if len(eeg_picks) == 0:
-        logger.warning("No EEG channels found for topoplot")
-        plt.close(fig)
+    if not panels:
+        logger.warning("None of the bad channels are EEG or MEG sensors")
         return None
-    
-    # Get channel names
-    ch_names = [info['ch_names'][i] for i in eeg_picks]
-    
-    # Create data array (all zeros for white background)
-    data_to_plot = np.zeros(len(eeg_picks))
-    
-    # Create mask for bad channels
-    mask = np.array([ch in bad_channels for ch in ch_names])
-    
-    if not np.any(mask):
-        logger.warning("None of the bad channels are in the EEG channels")
-        plt.close(fig)
-        return None
-    
-    # Plot topomap with white background
-    # The montage from info will be used automatically by plot_topomap
-    from mne.viz import plot_topomap
-    im, cn = plot_topomap(
-        data_to_plot, 
-        info,
-        axes=ax,
-        show=False,
-        cmap='Greys',
-        vlim=(0, 0.1),
-        outlines=outlines,
-        mask=mask,
-        mask_params=dict(
-            marker='x',
-            markerfacecolor='red',
-            markeredgecolor='red',
-            linewidth=0,
-            markersize=15
-        ),
-        sensors=True,
-        contours=0
-    )
-    
-    ax.set_title(f'Bad Channels (n={len(bad_channels)})', fontsize=14, fontweight='bold')
-    
+
+    from mne.viz import plot_topomap, plot_sensors
+    n_panels = len(panels)
+    size = figsize if n_panels == 1 else (figsize[0] * 0.75 * n_panels, figsize[1])
+    fig, axes = plt.subplots(1, n_panels, figsize=size, squeeze=False)
+
+    for ax, (ch_type, title, picks, bad_here) in zip(axes[0], panels):
+        if ch_type == 'eeg':
+            ch_names = [info['ch_names'][p] for p in picks]
+            # White background; the montage from info places the electrodes.
+            plot_topomap(
+                np.zeros(len(picks)),
+                mne.pick_info(info, picks),
+                axes=ax,
+                show=False,
+                cmap='Greys',
+                vlim=(0, 0.1),
+                outlines=outlines,
+                mask=np.array([ch in bad_channels for ch in ch_names]),
+                mask_params=dict(
+                    marker='x',
+                    markerfacecolor='red',
+                    markeredgecolor='red',
+                    linewidth=0,
+                    markersize=15
+                ),
+                sensors=True,
+                contours=0
+            )
+        else:
+            sensors = mne.pick_info(info, picks)
+            sensors['bads'] = bad_here
+            plot_sensors(sensors, kind='topomap', axes=ax, show=False, show_names=False)
+        if n_panels == 1:
+            ax.set_title(f'Bad Channels (n={len(bad_channels)})', fontsize=14, fontweight='bold')
+        else:
+            ax.set_title(f'{title} (n={len(bad_here)})', fontsize=12, fontweight='bold')
+
+    if n_panels > 1:
+        fig.suptitle(f'Bad Channels (n={len(bad_channels)})', fontsize=14, fontweight='bold')
+
     # Add text listing bad channels
     bad_channels_text = ', '.join(bad_channels)
-    fig.text(0.5, 0.05, f'Bad channels: {bad_channels_text}', 
+    fig.text(0.5, 0.05, f'Bad channels: {bad_channels_text}',
             ha='center', fontsize=10, wrap=True)
-    
+
     plt.tight_layout()
-    
+
     return fig
 
 
