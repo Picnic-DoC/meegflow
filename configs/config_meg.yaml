@@ -1,0 +1,66 @@
+# MEEGFlow configuration for MEG (Elekta/MEGIN Neuromag data).
+#
+# `datatype: meg` makes MEG the default wherever a parameter is omitted:
+# steps pick the MEG channels (magnetometers and gradiometers, without
+# reference channels), the threshold detectors use MEG rejection thresholds,
+# the BIDS reader searches the `meg` datatype, and outputs are labelled `meg`.
+#
+# Run on a BIDS dataset:
+#   meegflow --bids-root /path/to/bids --config configs/config_meg.yaml
+# or on any other layout:
+#   meegflow --reader glob --data-root /path/to/data \
+#       --glob-pattern 'sub-{subject}/{task}_raw.fif' --io-backend read_raw_fif \
+#       --config configs/config_meg.yaml
+
+datatype: meg
+
+pipeline:
+  - name: concatenate_recordings
+
+  # Head position from the cHPI coils, for movement compensation below.
+  # Remove this step (and `head_pos` below) for recordings without cHPI.
+  - name: compute_head_pos
+    save: true
+
+  # Noisy and flat MEG channels, marked bad before Maxwell filtering.
+  - name: find_bads_maxwell
+    calibration: /path/to/sss_cal.dat
+    cross_talk: /path/to/ct_sparse.fif
+
+  # tSSS with movement compensation (MNE's defaults for everything else).
+  - name: maxwell_filter
+    calibration: /path/to/sss_cal.dat
+    cross_talk: /path/to/ct_sparse.fif
+    st_duration: 10
+    head_pos: head_pos
+
+  - name: bandpass_filter
+    l_freq: 0.1
+    h_freq: 40.0
+
+  - name: notch_filter
+    freqs: [50.0, 100.0]
+
+  # Cardiac and ocular projectors (SSP). Without an ECG channel, MNE builds
+  # a synthetic ECG from the magnetometers. They are applied by `epoch`.
+  - name: compute_ssp
+    artifact: ecg
+  - name: compute_ssp
+    artifact: eog
+
+  - name: find_events
+    get_events_from: stim_channel
+    stim_channel: STI 014
+
+  - name: epoch
+    tmin: -0.2
+    tmax: 0.5
+
+  # Rejection thresholds default to 4000 fT (mag) and 4000 fT/cm (grad).
+  - name: find_bads_epochs_threshold
+
+  - name: save_clean_instance
+    instance: epochs
+
+  - name: generate_json_report
+  - name: generate_html_report

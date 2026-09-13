@@ -266,6 +266,8 @@ derivatives/meegflow/
 
 The pipeline is configuration-driven. You define a list of preprocessing steps, their order, and parameters in a YAML file.
 
+An optional top-level `datatype: meg` (the default is `eeg`) makes MEG the default wherever a step parameter is omitted: the channels steps pick, the rejection thresholds, the BIDS datatype that is read, and the datatype outputs are labelled with. See `configs/config_meg.yaml`.
+
 ### Available Steps
 
 Data Organization:
@@ -288,7 +290,7 @@ Preprocessing:
 - **ica**: ICA-based artifact removal
 
 Bad Channel Detection:
-- **find_flat_channels**: Find flat/disconnected channels based on variance
+- **find_flat_channels**: Find flat/disconnected channels based on variance, with a threshold per channel type
 - **find_bads_channels_threshold**: Find bad channels using threshold-based rejection
 - **find_bads_channels_variance**: Find bad channels using variance-based detection
 - **find_bads_channels_high_frequency**: Find bad channels using high-frequency variance
@@ -296,6 +298,13 @@ Bad Channel Detection:
 Bad Channel Handling:
 - **interpolate_bad_channels**: Interpolate bad channels
 - **drop_bad_channels**: Drop bad channels without interpolation
+
+MEG:
+- **maxwell_filter**: Maxwell filtering (SSS, tSSS) with optional movement compensation
+- **find_bads_maxwell**: Find noisy and flat MEG channels with Maxwell filtering
+- **compute_head_pos**: Estimate continuous head position from cHPI coils
+- **compute_ssp**: Compute signal-space projectors (SSP) for ECG or EOG artifacts
+- **apply_gradient_compensation**: Set the CTF gradient compensation grade
 
 Epoching:
 - **find_events**: Find events in the data

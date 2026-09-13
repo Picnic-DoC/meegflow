@@ -15,6 +15,28 @@ pipeline:
   - name: save_clean_instance
 ```
 
+## Top-level `datatype`
+
+An optional top-level `datatype` key declares whether the pipeline processes EEG or MEG. It sets the default of every parameter that depends on the kind of data; a parameter given in a step always wins.
+
+```yaml
+datatype: meg      # 'eeg' (default) or 'meg'
+pipeline:
+  - name: bandpass_filter      # filters the MEG channels, since picks is omitted
+    l_freq: 1.0
+    h_freq: 40.0
+```
+
+| Default | `datatype: eeg` (or key absent) | `datatype: meg` |
+|---|---|---|
+| `picks` of every step | EEG channels | MEG channels (magnetometers and gradiometers, not the reference channels) |
+| `reject` of the threshold detectors | `{eeg: 100e-6}` | `{mag: 4e-12, grad: 4e-10}` (4000 fT, 4000 fT/cm) |
+| BIDS reader datatype | detected from the dataset (EEG preferred) | `meg` |
+| Datatype folder of outputs and reports, and the suffix of a saved raw recording | as before the key existed | `meg` |
+| CLI `--extension` | `.vhdr` | `.fif` |
+
+Without the key, a configuration behaves exactly as before. `--datatype` on the command line, or a `datatype` given to `BIDSReader`, takes precedence for the reader.
+
 ## Available steps
 
 ### Data loading / setup
@@ -115,10 +137,10 @@ Any string value (in `args`, keyword arguments, or `target`) that starts with `d
 
 | Step | Key parameters |
 |------|---------------|
-| `find_flat_channels` | `threshold` (default `1e-12`), `picks`, `excluded_channels` |
-| `find_bads_channels_threshold` | `reject` (dict), `n_epochs_bad_ch`, `picks`, `apply_on` |
-| `find_bads_channels_variance` | `zscore_thresh`, `max_iter`, `picks`, `instance`, `apply_on` |
-| `find_bads_channels_high_frequency` | `zscore_thresh`, `max_iter`, `picks`, `instance`, `apply_on` |
+| `find_flat_channels` | `threshold` (a variance: a number for every channel, or a dict per channel type; defaults `mag: 1e-30`, `grad: 1e-26`, `1e-12` for every other type), `picks`, `excluded_channels` |
+| `find_bads_channels_threshold` | `reject` (dict; default from `datatype`), `n_epochs_bad_ch`, `picks`, `apply_on` |
+| `find_bads_channels_variance` | `zscore_thresh`, `max_iter`, `picks`, `instance`, `apply_on` (z-scored per channel type) |
+| `find_bads_channels_high_frequency` | `zscore_thresh`, `max_iter`, `picks`, `instance`, `apply_on` (z-scored per channel type) |
 
 ### Bad channel handling
 
@@ -132,6 +154,37 @@ Any string value (in `args`, keyword arguments, or `target`) that starts with `d
 | Step | Key parameters |
 |------|---------------|
 | `ica` | `n_components`, `method`, `fit_params`, `picks`, `eog_channel`, `ecg_channel` |
+
+### MEG
+
+Wrappers around MNE-Python's standard MEG operations. Any keyword argument of the underlying MNE function can be given and is passed through, so MNE's defaults apply.
+
+| Step | Key parameters |
+|------|---------------|
+| `maxwell_filter` | `calibration`, `cross_talk` (fine-calibration and cross-talk files), `st_duration` (enables tSSS), `head_pos` (context entry or `.pos` file, for movement compensation), `instance`, and any argument of `mne.preprocessing.maxwell_filter` |
+| `find_bads_maxwell` | `calibration`, `cross_talk`, `apply_on`, `instance`, and any argument of `mne.preprocessing.find_bad_channels_maxwell` |
+| `compute_head_pos` | `pos_file` (read instead of compute), `var_name` (default `head_pos`), `save`, and the cHPI parameters `t_step_min`, `t_window`, `dist_limit`, `gof_limit`, ... |
+| `compute_ssp` | `artifact` (`ecg` or `eog`, required), `n_grad`, `n_mag`, `n_eeg`, `ch_name`, `apply` (default `false`), and any argument of `mne.preprocessing.compute_proj_ecg` / `compute_proj_eog` |
+| `apply_gradient_compensation` | `grade` (CTF compensation grade, default `3`), `instance` |
+
+```yaml
+datatype: meg
+pipeline:
+  - name: concatenate_recordings
+  - name: compute_head_pos           # from the cHPI coils
+  - name: find_bads_maxwell
+    calibration: sss_cal.dat
+    cross_talk: ct_sparse.fif
+  - name: maxwell_filter             # tSSS with movement compensation
+    calibration: sss_cal.dat
+    cross_talk: ct_sparse.fif
+    st_duration: 10
+    head_pos: head_pos
+  - name: compute_ssp
+    artifact: ecg
+```
+
+A complete example is in `configs/config_meg.yaml`.
 
 ### Epoching
 
@@ -154,7 +207,7 @@ Any string value (in `args`, keyword arguments, or `target`) that starts with `d
 
 ### `picks`
 
-Accepts any value that MNE's `pick_types` understands (e.g. `'eeg'`, `['eeg', 'meg']`, or a list of channel names).
+A list of channel types understood by `mne.pick_types` (e.g. `['eeg']`, `['meg']`, `['eeg', 'eog']`). If omitted, the channels of the top-level `datatype`: EEG by default, or MEG (without reference channels) with `datatype: meg`.
 
 ### `excluded_channels`
 
