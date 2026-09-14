@@ -34,11 +34,11 @@ docker build -t meegflow .
 
 2. Run the container:
 ```bash
-docker run --rm -v /path/to/bids/data:/data meegflow \
+docker run --rm -v /path/to/bids/data:/data -v /path/to/config.yaml:/config.yaml meegflow \
     --bids-root /data \
     --subjects 01 02 \
     --tasks rest \
-    --config /app/configs/config_example.yaml
+    --config /config.yaml
 ```
 
 ### Option 2: Local Installation
@@ -108,8 +108,10 @@ python src/cli.py \
     --bids-root /path/to/bids/dataset \
     --subjects 01 02 03 \
     --tasks rest \
-    --config configs/config_example.yaml
+    --config config.yaml
 ```
+
+Here `config.yaml` is your pipeline configuration (see [Example Configuration](#example-configuration)).
 
 If you installed the package with `pip install -e .`, you can use the `meegflow` command:
 
@@ -118,7 +120,7 @@ meegflow \
     --bids-root /path/to/bids/dataset \
     --subjects 01 02 03 \
     --tasks rest \
-    --config configs/config_example.yaml
+    --config config.yaml
 ```
 
 Process all subjects with a specific task:
@@ -148,7 +150,7 @@ from meegflow.readers import BIDSReader
 
 # Load configuration
 import yaml
-with open('configs/config_example.yaml', 'r') as f:
+with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
 # Create a BIDS reader
@@ -186,7 +188,7 @@ python src/cli.py \
     --bids-root /path/to/bids/dataset \
     --subjects 01 02 \
     --tasks rest \
-    --config configs/config_example.yaml
+    --config config.yaml
 ```
 
 ### Glob Reader
@@ -200,7 +202,7 @@ python src/cli.py \
     --glob-pattern "sub-{subject}/ses-{session}/eeg/sub-{subject}_task-{task}_eeg.vhdr" \
     --subjects 01 02 \
     --tasks rest \
-    --config configs/config_example.yaml
+    --config config.yaml
 ```
 
 **Pattern syntax:** Use `{variable_name}` placeholders which:
@@ -266,7 +268,7 @@ derivatives/meegflow/
 
 The pipeline is configuration-driven. You define a list of preprocessing steps, their order, and parameters in a YAML file.
 
-An optional top-level `datatype: meg` (the default is `eeg`) makes MEG the default wherever a step parameter is omitted: the channels steps pick, the rejection thresholds, the BIDS datatype that is read, and the datatype outputs are labelled with. See `configs/config_meg.yaml`.
+An optional top-level `datatype: meg` (the default is `eeg`) makes MEG the default wherever a step parameter is omitted: the channels steps pick, the rejection thresholds, the BIDS datatype that is read, and the datatype outputs are labelled with. See the [MEG example](docs/usage/examples.md#meg).
 
 ### Available Steps
 
@@ -319,7 +321,7 @@ Output:
 
 ### Example Configuration
 
-See `configs/config_example.yaml` for a full pipeline with epochs:
+A full pipeline with epochs:
 
 ```yaml
 pipeline:
@@ -344,7 +346,7 @@ pipeline:
   - name: generate_html_report
 ```
 
-See `configs/config_raw_only.yaml` for a simpler pipeline without epoching:
+A simpler pipeline without epoching:
 
 ```yaml
 pipeline:
@@ -361,7 +363,7 @@ pipeline:
   - name: generate_json_report
 ```
 
-See `configs/config_with_adaptive_reject.yaml` for a pipeline with adaptive autoreject steps. This config includes additional preprocessing steps like montage setting, notch filtering, and resampling:
+A pipeline prepared for the adaptive autoreject steps, which also sets the montage, applies a notch filter and resamples. The adaptive bad-channel and bad-epoch detection steps are commented out, ready to be uncommented and tuned:
 
 ```yaml
 pipeline:
@@ -395,6 +397,30 @@ pipeline:
     baseline: [null, 0.0]
     reject: null
   
+  #- name: find_bads_channels_threshold
+  #  reject:
+  #    eeg: 1.0e-4
+  #  n_epochs_bad_ch: 0.5
+  #  apply_on: ['epochs', 'raw']
+  
+  #- name: find_bads_channels_variance
+  #  instance: epochs
+  #  apply_on: ['epochs', 'raw']
+  #  zscore_thresh: 4
+  #  max_iter: 2
+  
+  #- name: find_bads_channels_high_frequency
+  #  instance: epochs
+  #  apply_on: ['epochs', 'raw']
+  #  zscore_thresh: 4
+  #  max_iter: 2
+  
+  #- name: find_bads_epochs_threshold
+  #  apply_on: ['epochs', 'raw']
+  #  reject:
+  #    eeg: 1.0e-4
+  #  n_channels_bad_epoch: 0.1
+  
   - name: reference
     instance: 'epochs'
     ref_channels: average
@@ -406,9 +432,7 @@ pipeline:
   - name: generate_html_report
 ```
 
-Note: This config file also includes commented-out examples of bad channel detection steps (find_bads_channels_threshold, find_bads_channels_variance, find_bads_channels_high_frequency) that can be uncommented and customized as needed.
-
-See `configs/config_minimal.yaml` for a comprehensive pipeline including strip_recording, copy_instance, and ICA:
+A comprehensive pipeline including strip_recording, copy_instance, and ICA:
 
 ```yaml
 pipeline:
@@ -459,11 +483,7 @@ pipeline:
           label: 'Before Cleaning'
 ```
 
-Additional example configurations available in `configs/`:
-- `config_with_drop_bad_channels.yaml` - Example using drop_bad_channels instead of interpolation
-- `config_with_excluded_channels.yaml` - Example using excluded_channels parameter to preserve reference channels
-- `config_with_custom_steps.yaml` - Example showing how to integrate custom preprocessing steps
-- `config_with_parallel_execution.yaml` - Example enabling parallel recording execution via Dask (see [Parallel Execution with Dask](#parallel-execution-with-dask))
+More example configurations (dropping bad channels instead of interpolating them, excluding channels from processing, custom steps, parallel execution and MEG) are in [docs/usage/examples.md](docs/usage/examples.md).
 
 ## Command-Line Arguments
 
@@ -543,7 +563,7 @@ Custom step functions must follow these rules:
 - **Recording**: Append a summary to `data['preprocessing_steps']` for reporting
 - **Naming**: Function names become step names; avoid starting with underscore
 
-See `configs/example_custom_steps.py` for complete examples.
+See [docs/usage/examples.md](docs/usage/examples.md#custom-steps) for a complete example with three custom steps.
 
 ### Using Custom Steps with Docker
 
@@ -619,7 +639,7 @@ Many preprocessing steps support an `excluded_channels` parameter that allows yo
   excluded_channels: ['Cz']  # Don't drop Cz even if marked as bad
 ```
 
-See `configs/config_with_excluded_channels.yaml` for a complete example.
+See [docs/usage/examples.md](docs/usage/examples.md#excluding-channels) for a complete example.
 
 ### Data Organization Steps
 
@@ -838,7 +858,7 @@ Generate JSON report with preprocessing information. No parameters needed.
 Generate HTML report with interactive visualizations.
 - `picks`: Channel types to include in plots (optional, default: EEG channels)
 - `excluded_channels`: List of channel names to exclude from plots (optional)
-- `compare_instances`: List of instance comparisons to plot (optional, see config_minimal.yaml for example)
+- `compare_instances`: List of instance comparisons to plot (optional, see the comprehensive pipeline under [Example Configuration](#example-configuration))
 - `n_time_points`: Number of time points shown in evoked plots (optional, default: MNE default)
 - `plot_raw_kwargs`: Additional keyword arguments for raw data plots (optional, dict)
 - `plot_ica_kwargs`: Additional keyword arguments for ICA plots (optional, dict)
@@ -856,12 +876,12 @@ python src/cli.py \
     --bids-root /path/to/bids/dataset \
     --subjects 01 02 03 04 05 \
     --tasks rest \
-    --config configs/config_example.yaml
+    --config config.yaml
 
 # Process all subjects in the dataset
 python src/cli.py \
     --bids-root /path/to/bids/dataset \
-    --config configs/config_example.yaml
+    --config config.yaml
 
 # Process specific sessions for specific subjects
 python src/cli.py \
@@ -966,7 +986,7 @@ The pipeline also saves a summary of results to `derivatives/meegflow/pipeline_r
 When using Docker, you need to mount your local directories to paths inside the container using the `-v` flag:
 
 - **BIDS dataset**: Mount your BIDS root directory to `/data` or any path you specify with `--bids-root`
-- **Configuration files**: Mount custom config files if not using the built-in configs in `/app/configs/`
+- **Configuration files**: Mount your config file (and custom steps folder, if any); the image does not include example configs
 - **Output directory**: The pipeline writes outputs to `<bids-root>/derivatives/meegflow/` by default
 - **Log files**: If using `--log-file`, mount a directory for log output
 
@@ -988,26 +1008,17 @@ docker run --rm --user $(id -u):$(id -g) \
 sudo chown -R $USER:$USER /path/to/bids/derivatives
 ```
 
-### Using Built-in Configurations
+### Using Your Own Configuration
 
-The Docker image includes several pre-configured pipeline examples in `/app/configs/`:
-- `/app/configs/config_example.yaml` - Standard pipeline with epochs
-- `/app/configs/config_raw_only.yaml` - Raw data processing without epoching
-- `/app/configs/config_with_adaptive_reject.yaml` - Advanced pipeline with concatenation and event-based epochs
-- `/app/configs/config_minimal.yaml` - Comprehensive pipeline with strip_recording, ICA, and instance comparison
-- `/app/configs/config_with_drop_bad_channels.yaml` - Pipeline using drop_bad_channels instead of interpolation
-- `/app/configs/config_with_excluded_channels.yaml` - Pipeline demonstrating excluded_channels parameter
-- `/app/configs/config_with_custom_steps.yaml` - Example template for using custom preprocessing steps
-- `/app/configs/config_with_parallel_execution.yaml` - Example enabling parallel recording execution via Dask
-
-Example using a built-in config:
+Mount your configuration file and pass its path inside the container:
 ```bash
 docker run --rm \
     -v /path/to/bids:/data \
+    -v /path/to/config.yaml:/config.yaml \
     meegflow \
     --bids-root /data \
     --tasks rest \
-    --config /app/configs/config_with_adaptive_reject.yaml
+    --config /config.yaml
 ```
 
 ### Building from Source

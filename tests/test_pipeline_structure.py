@@ -14,7 +14,6 @@ from pathlib import Path
 # Find the repository root
 repo_root = Path(__file__).parent.parent
 src_dir = repo_root / "src"
-configs_dir = repo_root / "configs"
 
 
 def test_pipeline_file_exists():
@@ -95,25 +94,38 @@ def test_all_builtin_steps_registered():
         print(f"✓ Step {step} registered")
 
 
-def test_config_example_valid_yaml():
-    """Test that the example config is valid YAML."""
-    config_file = configs_dir / "config_example.yaml"
-    assert config_file.exists(), "Config example file does not exist"
-    
+def test_documented_configs_valid():
+    """Test that the example configs in the documentation are valid."""
+    import re
     import yaml
-    with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    # Check for pipeline configuration structure (new config format)
-    assert "pipeline" in config, "Config must have 'pipeline' key"
-    assert isinstance(config["pipeline"], list), "Pipeline must be a list of steps"
-    assert len(config["pipeline"]) > 0, "Pipeline must have at least one step"
-    
-    # Check that steps have names
-    for step in config["pipeline"]:
-        assert "name" in step, "Each step must have a 'name' key"
-    
-    print("✓ Config example is valid YAML with pipeline structure")
+    from meegflow.steps import STEP_REGISTRY
+
+    sources = [repo_root / "README.md", *sorted((repo_root / "docs").rglob("*.md"))]
+    n_configs = 0
+    for source in sources:
+        text = source.read_text()
+        # Custom steps defined in the same page, e.g. passed to the Python API
+        # as custom_steps_folder rather than named in the YAML.
+        python_code = "\n".join(re.findall(r"```python\n(.*?)```", text, re.S))
+        doc_steps = set(re.findall(r"^def (\w+)\(", python_code, re.M))
+        for block in re.findall(r"```yaml\n(.*?)```", text, re.S):
+            if "pipeline:" not in block:
+                continue
+            config = yaml.safe_load(block)
+            if not (isinstance(config, dict) and "pipeline" in config):
+                continue
+            n_configs += 1
+            name = source.relative_to(repo_root)
+            assert isinstance(config["pipeline"], list) and config["pipeline"], \
+                f"{name}: 'pipeline' must be a non-empty list of steps"
+            for step in config["pipeline"]:
+                assert "name" in step, f"{name}: each step must have a 'name' key"
+                if "custom_steps_folder" not in config:
+                    assert step["name"] in STEP_REGISTRY or step["name"] in doc_steps, \
+                        f"{name}: unknown step '{step['name']}'"
+
+    assert n_configs > 0, "No example config found in the documentation"
+    print(f"✓ {n_configs} documented example configs are valid")
 
 
 def test_requirements_in_setup():

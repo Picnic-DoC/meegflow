@@ -184,7 +184,7 @@ pipeline:
     artifact: ecg
 ```
 
-A complete example is in `configs/config_meg.yaml`.
+A complete MEG pipeline is in [Example Configurations](examples.md#meg).
 
 ### Epoching
 

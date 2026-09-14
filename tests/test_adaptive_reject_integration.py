@@ -95,15 +95,18 @@ def test_readme_documents_adaptive_reject():
 
 
 def test_readme_has_config_example():
-    """Test that README references the new config example."""
+    """Test that README includes an example config with the adaptive steps."""
+    import re
+
     readme_file = Path("README.md")
-    
+
     with open(readme_file, 'r') as f:
         readme = f.read()
-    
-    assert "config_with_adaptive_reject.yaml" in readme, \
-        "README does not reference config_with_adaptive_reject.yaml"
-    print("✓ README references 'config_with_adaptive_reject.yaml'")
+
+    blocks = re.findall(r"```yaml\n(.*?)```", readme, re.S)
+    assert any("find_bads_channels_threshold" in block for block in blocks), \
+        "README has no example config with the adaptive rejection steps"
+    print("✓ README includes an example config with the adaptive rejection steps")
 
 
 def run_all_tests():

@@ -31,7 +31,7 @@ meegflow --bids-root PATH --config PATH [OPTIONS]
 ```bash
 meegflow \
     --bids-root /data/my_study \
-    --config configs/config_example.yaml
+    --config config.yaml
 ```
 
 ### Process specific subjects and tasks
@@ -39,7 +39,7 @@ meegflow \
 ```bash
 meegflow \
     --bids-root /data/my_study \
-    --config configs/config_example.yaml \
+    --config config.yaml \
     --subjects 01 02 03 \
     --tasks rest
 ```
@@ -49,7 +49,7 @@ meegflow \
 ```bash
 meegflow \
     --bids-root /data/my_study \
-    --config configs/config_example.yaml \
+    --config config.yaml \
     --log-file logs/preproc.log \
     --log-level DEBUG
 ```

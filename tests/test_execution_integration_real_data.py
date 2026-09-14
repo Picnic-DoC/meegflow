@@ -25,7 +25,7 @@ found"):
 - ``$TEST_DATASETS_ROOT/ssvep``
 - ``$TEST_DATASETS_ROOT/decoding_csp_eeg``
 
-Configs: configs/integration/{ssvep,decoding_csp}_{sequential,local,slurm}.yaml
+Configs: tests/configs/integration/{ssvep,decoding_csp}_{sequential,local,slurm}.yaml
 (pipeline steps copied verbatim from each dataset's known-good config; only
 the top-level 'execution' block varies across the three backend variants).
 
@@ -45,7 +45,7 @@ import yaml
 repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root / "src"))
 
-CONFIGS_DIR = repo_root / "configs" / "integration"
+CONFIGS_DIR = repo_root / "tests" / "configs" / "integration"
 
 RUN_REAL_DATA_TESTS = os.environ.get("MEEGFLOW_RUN_REAL_DATA_TESTS") == "1"
 
@@ -266,7 +266,7 @@ def test_execution_backend_against_real_dataset(case):
 
     NOTE: the 'slurm' backend cases require a real, reachable Slurm cluster
     -- there isn't one on this development machine, and
-    configs/integration/*_slurm.yaml's cluster_kwargs are placeholders that
+    tests/configs/integration/*_slurm.yaml's cluster_kwargs are placeholders that
     must be edited before this will succeed against a real cluster.
     """
     from meegflow import MEEGFlowPipeline

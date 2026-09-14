@@ -10,7 +10,7 @@ from meegflow import MEEGFlowPipeline
 from meegflow.readers import BIDSReader
 
 # Load config
-with open("configs/config_example.yaml") as f:
+with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
 # Create a reader
