@@ -19,7 +19,8 @@ meegflow --bids-root PATH --config PATH [OPTIONS]
 | `--tasks` | list | Task name(s) to process (default: all) |
 | `--acquisitions` | list | Acquisition label(s) to process (default: all) |
 | `--runs` | list | Run number(s) to process (default: all) |
-| `--extension` | str | File extension filter (e.g. `.vhdr`) |
+| `--extension` | str | File extension filter (default: `.fif` when the datatype is `meg`, `.vhdr` otherwise) |
+| `--datatype` | str | BIDS datatype to process: `eeg`, `meg`, `ieeg` or `nirs` (BIDS reader only; defaults to the config's top-level `datatype`, otherwise detected from the dataset) |
 | `--log-file` | path | Write MNE log to this file (appended) |
 | `--log-level` | str | MNE log level (`DEBUG`, `INFO`, `WARNING`, …). Default `INFO` |
 
@@ -30,7 +31,7 @@ meegflow --bids-root PATH --config PATH [OPTIONS]
 ```bash
 meegflow \
     --bids-root /data/my_study \
-    --config configs/config_example.yaml
+    --config config.yaml
 ```
 
 ### Process specific subjects and tasks
@@ -38,7 +39,7 @@ meegflow \
 ```bash
 meegflow \
     --bids-root /data/my_study \
-    --config configs/config_example.yaml \
+    --config config.yaml \
     --subjects 01 02 03 \
     --tasks rest
 ```
@@ -48,7 +49,7 @@ meegflow \
 ```bash
 meegflow \
     --bids-root /data/my_study \
-    --config configs/config_example.yaml \
+    --config config.yaml \
     --log-file logs/preproc.log \
     --log-level DEBUG
 ```

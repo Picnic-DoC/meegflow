@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Dataset readers for EEG preprocessing pipeline.
+Dataset readers for MEEG preprocessing pipeline.
 
-This module provides different strategies for finding and reading EEG data files:
+This module provides different strategies for finding and reading MEEG data files:
 - BIDSReader: Uses MNE-BIDS to discover files in BIDS-formatted datasets
 - GlobReader: Uses glob patterns with variable extraction to find files
 
@@ -15,8 +15,13 @@ from typing import List, Dict, Any, Optional, Union
 import re
 from itertools import product
 import mne
-from mne_bids import BIDSPath, get_entity_vals, read_raw_bids
+from mne_bids import BIDSPath, get_datatypes, get_entity_vals, read_raw_bids
 from mne.utils import logger
+
+
+# BIDS datatypes holding electrophysiological recordings the pipeline can
+# process. Datatypes such as 'anat' or 'beh' are never recording candidates.
+RECORDING_DATATYPES = ('eeg', 'meg', 'ieeg', 'nirs')
 
 
 class DatasetReader(ABC):
@@ -128,14 +133,77 @@ class BIDSReader(DatasetReader):
     ----------
     bids_root : str or Path
         Path to the BIDS root directory
+    datatype : str or None
+        BIDS datatype to search for, one of ``'eeg'``, ``'meg'``, ``'ieeg'``
+        or ``'nirs'``. If None (default), it is detected from the dataset;
+        see :meth:`_resolve_datatype`.
+    suffix : str or None
+        BIDS suffix to match. If None (default), the resolved datatype is
+        used, which is the BIDS convention for electrophysiological
+        recordings (``sub-01_task-rest_meg.fif`` in the ``meg`` datatype).
     """
-    
-    def __init__(self, bids_root: Union[str, Path]):
+
+    def __init__(
+        self,
+        bids_root: Union[str, Path],
+        datatype: Optional[str] = None,
+        suffix: Optional[str] = None
+    ):
         self.bids_root = Path(bids_root)
+        self.datatype = datatype
+        self.suffix = suffix
 
     @property
     def root(self) -> Path:
         return self.bids_root
+
+    def _resolve_datatype(self) -> str:
+        """Determine which BIDS datatype to search the dataset for.
+
+        An explicitly configured ``datatype`` always wins. Otherwise the
+        datatypes actually present in the dataset are discovered with
+        ``mne_bids.get_datatypes`` and one of them is selected. ``'eeg'`` is
+        preferred whenever it is present, because that is what this reader
+        matched unconditionally before the option existed: a dataset that
+        was processed before keeps resolving to exactly the same files.
+
+        Returns
+        -------
+        str
+            The BIDS datatype to pass to ``BIDSPath``.
+
+        Raises
+        ------
+        ValueError
+            If several recording datatypes are present, none of them is
+            'eeg', and no ``datatype`` was configured to disambiguate.
+        """
+        if self.datatype is not None:
+            return self.datatype
+
+        available = [d for d in get_datatypes(self.bids_root) if d in RECORDING_DATATYPES]
+
+        # Nothing recognizable in the dataset: keep the historical default so
+        # the "No files found" warning below stays the reported symptom.
+        if not available:
+            return 'eeg'
+
+        if 'eeg' in available:
+            if len(available) > 1:
+                logger.info(
+                    f"Datatypes found in {self.bids_root}: {available}. "
+                    f"Processing 'eeg'; pass datatype to process another one."
+                )
+            return 'eeg'
+
+        if len(available) > 1:
+            raise ValueError(
+                f"Multiple datatypes found in {self.bids_root}: {available}. "
+                f"Please specify which one to process with the 'datatype' argument."
+            )
+
+        logger.info(f"Detected datatype '{available[0]}' in {self.bids_root}")
+        return available[0]
 
 
     def _build_include_patterns(
@@ -265,7 +333,8 @@ class BIDSReader(DatasetReader):
         runs : str, list of str, or None
             Run ID(s) to process. If None, processes all runs.
         extension : str
-            File extension (default: .vhdr)
+            File extension (default: .vhdr). It must match the datatype being
+            processed, e.g. '.fif' for MEG.
 
         Returns
         -------
@@ -275,11 +344,17 @@ class BIDSReader(DatasetReader):
         if isinstance(runs, str):
             runs = [runs]
 
+        datatype = self._resolve_datatype()
+        # For electrophysiological recordings BIDS names the file after the
+        # datatype (sub-01_task-rest_meg.fif lives in the meg datatype).
+        suffix = self.suffix if self.suffix is not None else datatype
+
         subjects = self._get_entity_values('subject', subjects)
         sessions = self._get_entity_values('session', sessions, subjects=subjects)
         tasks = self._get_entity_values('task', tasks, subjects=subjects, sessions=sessions)
         acquisitions = self._get_entity_values('acquisition', acquisitions, subjects=subjects, sessions=sessions)
 
+        logger.info(f"Datatype to process: {datatype}")
         logger.info(f"Subjects to process: {subjects}")
         logger.info(f"Sessions to process: {sessions}")
         logger.info(f"Tasks to process: {tasks}")
@@ -300,8 +375,8 @@ class BIDSReader(DatasetReader):
                 task=task,
                 acquisition=acquisition,
                 extension=extension,
-                suffix='eeg',
-                datatype='eeg',
+                suffix=suffix,
+                datatype=datatype,
             )
 
             all_raw_paths = list(pb.match(ignore_nosub=True))

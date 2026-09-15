@@ -3,7 +3,7 @@
 Quick orientation (what matters):
 
 - **Project purpose:** configuration-driven EEG preprocessing built on MNE / MNE-BIDS. Main entry points are the CLI (`src/cli.py`) and the pipeline class (`src/eeg_preprocessing_pipeline.py`).
-- **Config-first design:** preprocessing pipelines are specified in YAML files under `configs/` as a `pipeline:` list of steps (each step is a dict with `name` + parameters). See `configs/config_example.yaml`.
+- **Config-first design:** preprocessing pipelines are specified in YAML files as a `pipeline:` list of steps (each step is a dict with `name` + parameters). The repository ships no config files; see the examples in `README.md` and `docs/usage/examples.md`.
 - **Console script:** installing the package (`pip install -e .`) registers `eeg-preprocess` (see `setup.py` entry_points). The CLI also has `python src/cli.py` usage (see `README.md` examples).
 
 How the pipeline is structured (big picture):
@@ -36,9 +36,9 @@ Developer workflows (how I usually run & debug):
   ```
 - Run pipeline locally (example):
   ```bash
-  python src/cli.py --bids-root /path/to/bids --subjects 01 --tasks rest --config configs/config_example.yaml
+  python src/cli.py --bids-root /path/to/bids --subjects 01 --tasks rest --config config.yaml
   # or after install
-  eeg-preprocess --bids-root /path/to/bids --tasks rest --config configs/config_example.yaml
+  eeg-preprocess --bids-root /path/to/bids --tasks rest --config config.yaml
   ```
 - Run tests: `pytest tests/` (project includes unit/integration tests under `tests/`).
 
@@ -49,7 +49,7 @@ How to add or modify a preprocessing step (concrete example):
    - Validate required instances (`'raw'` or `'epochs'`) and raise a clear ValueError if missing.
    - Mutate `data` in place (e.g., set `data['epochs'] = ...`) and append a summary dict into `data['preprocessing_steps']`.
    - Return `data` at the end.
-3. Add default config example to `configs/` if helpful and update `README.md` usage examples.
+3. If helpful, add an example configuration to `docs/usage/examples.md` and update `README.md` usage examples.
 
 Files to inspect for examples and conventions:
 
@@ -57,7 +57,7 @@ Files to inspect for examples and conventions:
 - `src/cli.py` — CLI argument handling, logging setup, JSON result file location
 - `src/adaptive_reject.py` — channel/epoch rejection helpers
 - `src/report.py` — helpers used to build HTML reports
-- `configs/` — canonical YAML config examples
+- `docs/usage/examples.md` — example YAML configurations
 - `README.md` — full usage and output structure
 
 Gotchas and discovered behaviors to watch for:

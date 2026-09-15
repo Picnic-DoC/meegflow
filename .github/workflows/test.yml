@@ -30,5 +30,14 @@ jobs:
         pip install -e .
         pip install pytest
 
+    - name: Cache MNE testing data
+      uses: actions/cache@v4
+      with:
+        path: ~/mne_data
+        key: mne-testing-data-${{ runner.os }}-v1
+
+    - name: Download MNE testing data (MEG recordings for the MEG tests)
+      run: python -c "import mne; mne.datasets.testing.data_path(verbose=True)"
+
     - name: Run tests
       run: pytest tests/ -v --tb=short

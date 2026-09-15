@@ -68,6 +68,26 @@ def create_mock_bids_dataset_with_runs(bids_root):
     return bids_root
 
 
+def create_mock_bids_dataset_meg(bids_root):
+    """Create a minimal mock BIDS dataset holding MEG recordings."""
+    bids_root = Path(bids_root)
+
+    subjects = ['01', '02']
+    sessions = ['01']
+    tasks = ['rest']
+
+    for sub in subjects:
+        for ses in sessions:
+            meg_dir = bids_root / f'sub-{sub}' / f'ses-{ses}' / 'meg'
+            meg_dir.mkdir(parents=True, exist_ok=True)
+
+            for task in tasks:
+                filename = f'sub-{sub}_ses-{ses}_task-{task}_meg.fif'
+                (meg_dir / filename).touch()
+
+    return bids_root
+
+
 def create_mock_glob_dataset(data_root):
     """Create a minimal dataset for glob pattern testing."""
     data_root = Path(data_root)
@@ -164,6 +184,111 @@ def test_bids_reader_filtering():
                     f"Expected task 'rest', got {recording['metadata']['task']}"
                 
         print("✓ BIDSReader filtering works correctly")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
+def test_bids_reader_meg_dataset():
+    """Test BIDSReader discovers MEG recordings without being told the datatype.
+
+    Both the datatype and the suffix must follow the dataset: the files are
+    named ``sub-01_ses-01_task-rest_meg.fif``, so a hard-coded 'eeg' suffix
+    would match nothing.
+    """
+    try:
+        from meegflow.readers import BIDSReader
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bids_root = create_mock_bids_dataset_meg(tmpdir)
+            reader = BIDSReader(bids_root)
+
+            recordings = reader.find_recordings(extension='.fif')
+
+            assert len(recordings) > 0, f"Expected MEG recordings, got {len(recordings)}"
+
+            for recording in recordings:
+                for path in recording['paths']:
+                    assert path.datatype == 'meg', \
+                        f"Expected datatype 'meg', got {path.datatype}"
+                    assert path.suffix == 'meg', \
+                        f"Expected suffix 'meg', got {path.suffix}"
+
+        print("✓ BIDSReader discovers MEG recordings")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
+def test_bids_reader_datatype_selection():
+    """Test datatype selection on a dataset holding both EEG and MEG."""
+    try:
+        from meegflow.readers import BIDSReader
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bids_root = create_mock_bids_dataset(tmpdir)
+            create_mock_bids_dataset_meg(bids_root)
+
+            # Without an explicit datatype, 'eeg' is still preferred: datasets
+            # processed before this option existed keep resolving to 'eeg'.
+            reader = BIDSReader(bids_root)
+            recordings = reader.find_recordings(subjects='01', tasks='rest')
+
+            assert len(recordings) > 0, "Should find EEG recordings"
+            for recording in recordings:
+                for path in recording['paths']:
+                    assert path.datatype == 'eeg', \
+                        f"Expected datatype 'eeg', got {path.datatype}"
+
+            # An explicit datatype selects the MEG recordings instead.
+            meg_reader = BIDSReader(bids_root, datatype='meg')
+            meg_recordings = meg_reader.find_recordings(
+                subjects='01', tasks='rest', extension='.fif'
+            )
+
+            assert len(meg_recordings) > 0, "Should find MEG recordings"
+            for recording in meg_recordings:
+                for path in recording['paths']:
+                    assert path.datatype == 'meg', \
+                        f"Expected datatype 'meg', got {path.datatype}"
+
+        print("✓ BIDSReader datatype selection works correctly")
+    except ImportError as e:
+        print(f"⚠ Skipping test (missing dependencies): {e}")
+        raise
+
+
+def test_bids_reader_ambiguous_datatype():
+    """Test that an ambiguous dataset with no EEG asks for an explicit datatype."""
+    try:
+        from meegflow.readers import BIDSReader
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bids_root = create_mock_bids_dataset_meg(tmpdir)
+
+            ieeg_dir = Path(bids_root) / 'sub-01' / 'ses-01' / 'ieeg'
+            ieeg_dir.mkdir(parents=True, exist_ok=True)
+            (ieeg_dir / 'sub-01_ses-01_task-rest_ieeg.vhdr').touch()
+
+            reader = BIDSReader(bids_root)
+            try:
+                reader.find_recordings(subjects='01', tasks='rest', extension='.fif')
+            except ValueError as e:
+                assert 'datatype' in str(e), \
+                    f"Error should mention the datatype argument, got: {e}"
+            else:
+                raise AssertionError(
+                    "Expected a ValueError for a dataset with several datatypes"
+                )
+
+            # Naming the datatype resolves the ambiguity
+            reader = BIDSReader(bids_root, datatype='meg')
+            recordings = reader.find_recordings(
+                subjects='01', tasks='rest', extension='.fif'
+            )
+            assert len(recordings) > 0, "Should find MEG recordings once told the datatype"
+
+        print("✓ BIDSReader reports ambiguous datatypes")
     except ImportError as e:
         print(f"⚠ Skipping test (missing dependencies): {e}")
         raise
@@ -444,6 +569,9 @@ def run_all_tests():
         test_bids_reader_basic,
         test_bids_reader_filtering,
         test_bids_reader_run_filtering,
+        test_bids_reader_meg_dataset,
+        test_bids_reader_datatype_selection,
+        test_bids_reader_ambiguous_datatype,
         test_glob_reader_variable_extraction,
         test_glob_reader_find_recordings,
         test_glob_reader_filtering,

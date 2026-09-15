@@ -25,9 +25,10 @@ docker build -t meegflow .
 
 docker run --rm \
     -v /path/to/bids:/data \
+    -v /path/to/config.yaml:/config.yaml \
     meegflow \
     --bids-root /data \
-    --config /app/configs/config_example.yaml \
+    --config /config.yaml \
     --subjects 01 02 \
     --tasks rest
 ```

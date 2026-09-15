@@ -69,6 +69,7 @@ nav:
       - Command Line: usage/cli.md
       - Python API: usage/api.md
       - Configuration Reference: usage/configuration.md
+      - Example Configurations: usage/examples.md
       - Readers: usage/readers.md
       - Parallel Execution: usage/parallel-execution.md
   - API Reference:

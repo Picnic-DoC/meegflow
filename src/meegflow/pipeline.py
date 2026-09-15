@@ -105,6 +105,7 @@ import inspect
 from .context import PipelineContext
 from .execution import ExecutionConfig, dispatch
 from .steps import STEP_REGISTRY
+from .defaults import resolve_datatype
 
 if TYPE_CHECKING:
     from .readers import DatasetReader
@@ -133,6 +134,12 @@ class MEEGFlowPipeline:
         self.config = config or {}
         self.output_root = Path(output_root) if output_root else None
         self.reader = reader
+
+        # Validate the top-level datatype. If the configuration names one, a
+        # BIDS reader that was not given its own datatype searches that one.
+        self.datatype = resolve_datatype(self.config)
+        if self.config.get('datatype') is not None and getattr(reader, 'datatype', False) is None:
+            reader.datatype = self.datatype
 
         # Built-in steps come from the registry (populated by importing the
         # steps package); custom steps may add to or override them by name.
