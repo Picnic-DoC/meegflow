@@ -5,7 +5,6 @@ Test the report module functions.
 
 import sys
 from pathlib import Path
-import numpy as np
 import mne
 
 # Add src to path
@@ -47,9 +46,9 @@ def test_collect_bad_channels_from_steps():
     
     # Test with steps containing bad channels
     steps = [
-        {'step': 'find_bads_channels_threshold', 'bad_channels': ['F3', 'C4']},
+        {'step': 'find_flat_channels', 'bad_channels': ['F3', 'C4']},
         {'step': 'bandpass_filter'},
-        {'step': 'find_bads_channels_variance', 'bad_channels': ['P4']},
+        {'step': 'find_bads_maxwell', 'bad_channels': ['P4']},
     ]
     
     bad_channels = collect_bad_channels_from_steps(steps)
@@ -57,8 +56,8 @@ def test_collect_bad_channels_from_steps():
     
     # Test with duplicate channels
     steps_with_dupes = [
-        {'step': 'find_bads_channels_threshold', 'bad_channels': ['F3', 'C4']},
-        {'step': 'find_bads_channels_variance', 'bad_channels': ['F3', 'P4']},
+        {'step': 'find_flat_channels', 'bad_channels': ['F3', 'C4']},
+        {'step': 'find_bads_maxwell', 'bad_channels': ['F3', 'P4']},
     ]
     
     bad_channels = collect_bad_channels_from_steps(steps_with_dupes)

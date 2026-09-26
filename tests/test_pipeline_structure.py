@@ -134,7 +134,7 @@ def test_requirements_in_setup():
     with open(setup_file, 'r') as f:
         setup_content = f.read()
 
-    required_packages = ["mne", "mne-bids", "numpy", "scipy", "PyYAML"]
+    required_packages = ["mne", "mne-bids", "numpy", "PyYAML"]
 
     for package in required_packages:
         assert package in setup_content, f"Required package {package} not in setup.py"

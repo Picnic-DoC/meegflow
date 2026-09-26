@@ -2,8 +2,8 @@
 #
 # Pipeline steps taken from the known-good config at
 # /home/laouen.belloli/Documents/data/ssvep/configs/standard_pipeline.yaml,
-# minus the find_bads_channels_*/find_bads_epochs_threshold steps, which were
-# removed from MEEGFlow along with the adaptive_reject module.
+# with the bad-channel and bad-epoch detection steps that MEEGFlow no longer
+# provides replaced by find_flat_channels.
 # Used by tests/test_execution_integration_real_data.py.
 #
 # Dataset: /home/laouen.belloli/Documents/data/ssvep/ssvep-example-data
@@ -29,6 +29,9 @@ pipeline:
     instance: raw
     sfreq: 250.0
     npad: auto
+
+  # Runs on raw, before epoching: the epochs inherit info['bads'].
+  - name: find_flat_channels
 
   - name: find_events
     get_events_from: annotations

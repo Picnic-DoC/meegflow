@@ -976,11 +976,10 @@ Note: This disables SSL verification for PyPI and should only be used in trusted
 
 ## Requirements
 
-- Python >= 3.8
+- Python >= 3.11
 - mne >= 1.5.0
-- mne-bids >= 0.14
+- mne-bids >= 0.18
 - numpy >= 1.24.0
-- scipy >= 1.11.0
 - rich >= 13.0.0
 - matplotlib >= 3.7.0 (recommended)
 - pandas >= 2.0.0 (recommended)

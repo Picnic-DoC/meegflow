@@ -75,7 +75,7 @@ def test_bad_channels_topoplot_generation():
             'raw': raw,
             'preprocessing_steps': [
                 {
-                    'step': 'find_bads_channels_threshold',
+                    'step': 'find_flat_channels',
                     'bad_channels': ['F3', 'P4']
                 }
             ]
@@ -138,8 +138,8 @@ def test_preprocessing_steps_table_generation():
                     'ref_channels': 'average'
                 },
                 {
-                    'step': 'find_bads_channels_threshold',
-                    'reject': {'eeg': 150e-6},
+                    'step': 'find_flat_channels',
+                    'threshold': {'eeg': 1e-12},
                     'bad_channels': ['F3', 'P4'],
                     'n_bad_channels': 2
                 }
