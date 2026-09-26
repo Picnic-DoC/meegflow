@@ -84,8 +84,6 @@ def test_all_builtin_steps_registered():
         "bandpass_filter", "notch_filter", "resample", "reference",
         "interpolate_bad_channels", "drop_bad_channels", "ica",
         "find_events", "epoch", "chunk_in_epoch", "find_flat_channels",
-        "find_bads_channels_threshold", "find_bads_channels_variance",
-        "find_bads_channels_high_frequency", "find_bads_epochs_threshold",
         "save_clean_instance", "generate_json_report", "generate_html_report",
     ]
     for step in required_steps:

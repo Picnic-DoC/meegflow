@@ -207,8 +207,6 @@ MEG_PIPELINE = [
     {'name': 'bandpass_filter', 'l_freq': 1.0, 'h_freq': 40.0},
     {'name': 'find_flat_channels'},
     {'name': 'chunk_in_epoch', 'duration': 2.0},
-    {'name': 'find_bads_channels_variance'},
-    {'name': 'find_bads_epochs_threshold'},
     {'name': 'save_clean_instance', 'instance': 'epochs'},
     {'name': 'generate_json_report'},
 ]

@@ -40,9 +40,6 @@ Preprocessing:
 
 Bad Channel Detection:
   - find_flat_channels: Detect flat/disconnected channels
-  - find_bads_channels_threshold: Threshold-based bad channel detection
-  - find_bads_channels_variance: Variance-based detection
-  - find_bads_channels_high_frequency: High-frequency noise detection
 
 Bad Channel Handling:
   - interpolate_bad_channels: Repair bad channels via interpolation
@@ -52,7 +49,6 @@ Epoching:
   - find_events: Extract events from data
   - epoch: Create epochs around events
   - chunk_in_epoch: Create fixed-length epochs
-  - find_bads_epochs_threshold: Detect and remove bad epochs
 
 Output:
   - save_clean_instance: Save preprocessed data to .fif

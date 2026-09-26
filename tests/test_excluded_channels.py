@@ -82,11 +82,7 @@ def test_steps_support_excluded_channels():
         'interpolate_bad_channels',
         'drop_bad_channels',
         'ica',
-        'find_flat_channels',
-        'find_bads_channels_threshold',
-        'find_bads_channels_variance',
-        'find_bads_channels_high_frequency',
-        'find_bads_epochs_threshold',
+        'find_flat_channels'
     ]
 
     for step_name in steps_with_exclusion:
@@ -102,11 +98,7 @@ def test_steps_pass_excluded_channels_to_get_picks():
         'bandpass_filter',
         'notch_filter',
         'ica',
-        'find_flat_channels',
-        'find_bads_channels_threshold',
-        'find_bads_channels_variance',
-        'find_bads_channels_high_frequency',
-        'find_bads_epochs_threshold',
+        'find_flat_channels'
     ]
 
     for step_name in steps_using_get_picks:
@@ -131,11 +123,7 @@ def test_preprocessing_steps_report_excluded_channels():
         'notch_filter',
         'interpolate_bad_channels',
         'ica',
-        'find_flat_channels',
-        'find_bads_channels_threshold',
-        'find_bads_channels_variance',
-        'find_bads_channels_high_frequency',
-        'find_bads_epochs_threshold',
+        'find_flat_channels'
     ]
 
     for step_name in steps_to_check:

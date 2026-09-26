@@ -22,14 +22,6 @@ DEFAULT_PICKS = {
     'meg': dict(meg=True, ref_meg=False, eeg=False, eog=False),
 }
 
-# Peak-to-peak rejection thresholds, in SI units (V, T, T/m), used by the
-# threshold-based detectors when ``reject`` is omitted. The MEG values are the
-# ones used throughout MNE-Python's tutorials (4000 fT and 4000 fT/cm).
-DEFAULT_REJECT = {
-    'eeg': {'eeg': 100e-6},
-    'meg': {'mag': 4000e-15, 'grad': 4000e-13},
-}
-
 # Variance below which ``find_flat_channels`` marks a channel as flat, per
 # channel type, in SI units squared: (1 fT)^2 for magnetometers and MEG
 # reference channels, (1 fT/cm)^2 for planar gradiometers. Every other channel

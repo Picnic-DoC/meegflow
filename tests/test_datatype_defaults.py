@@ -25,7 +25,7 @@ from conftest import run_step
 import mne
 from meegflow import MEEGFlowPipeline
 from meegflow.context import PipelineContext
-from meegflow.defaults import DEFAULT_REJECT, configured_datatype, resolve_datatype
+from meegflow.defaults import configured_datatype, resolve_datatype
 from meegflow.readers import BIDSReader, GlobReader
 
 CH_TYPES = ['mag'] * 4 + ['grad'] * 4 + ['eeg'] * 4 + ['eog', 'ref_meg']
@@ -149,25 +149,3 @@ class TestOutputDatatype:
                               _data(raw=_raw(['eeg'] * 4)), {})
             assert Path(result['json_report']).parent.name == 'meg'
 
-
-class TestRejectDefaults:
-    def test_meg_default_reject(self):
-        result = run_step(_pipeline({'datatype': 'meg'}), 'find_bads_epochs_threshold',
-                          _data(epochs=_epochs(['mag'] * 4 + ['grad'] * 4)), {})
-        assert result['preprocessing_steps'][-1]['reject'] == DEFAULT_REJECT['meg']
-
-    def test_eeg_default_reject_unchanged(self):
-        result = run_step(_pipeline({}), 'find_bads_channels_threshold',
-                          _data(epochs=_epochs(['eeg'] * 6)), {})
-        assert result['preprocessing_steps'][-1]['reject'] == {'eeg': 100e-6}
-
-    def test_threshold_for_absent_type_is_ignored_not_fatal(self):
-        # EEG thresholds on MEG-only epochs used to raise IndexError.
-        epochs = _epochs(['mag'] * 4 + ['grad'] * 4)
-        n_epochs = len(epochs)
-        result = run_step(_pipeline({}), 'find_bads_epochs_threshold', _data(epochs=epochs),
-                          {'picks': ['meg'], 'reject': {'eeg': 100e-6}})
-        step = result['preprocessing_steps'][-1]
-        assert step['reject'] == {}
-        assert step['n_bad_epochs'] == 0
-        assert len(result['epochs']) == n_epochs

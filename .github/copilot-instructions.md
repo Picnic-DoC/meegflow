@@ -24,7 +24,6 @@ Important patterns & conventions (be specific):
 Integration points & external deps:
 
 - Uses `mne`, `mne-bids` (BIDSPath + `read_raw_bids`), `rich` for progress bars, and `matplotlib` for reports. See `requirements.txt`.
-- Adaptive autoreject helpers live in `src/adaptive_reject.py` and are called by steps named `find_bads_*` — match function names exactly (e.g., `adaptive_reject.find_bads_channels_threshold`).
 - HTML report utilities are in `src/report.py` (helpers: `collect_bad_channels_from_steps`, `create_bad_channels_topoplot`, `create_preprocessing_steps_table`). Use these helpers to keep report logic consistent.
 
 Developer workflows (how I usually run & debug):
@@ -55,7 +54,6 @@ Files to inspect for examples and conventions:
 
 - `src/eeg_preprocessing_pipeline.py` — core pipeline and all existing `_step_*` implementations
 - `src/cli.py` — CLI argument handling, logging setup, JSON result file location
-- `src/adaptive_reject.py` — channel/epoch rejection helpers
 - `src/report.py` — helpers used to build HTML reports
 - `docs/usage/examples.md` — example YAML configurations
 - `README.md` — full usage and output structure

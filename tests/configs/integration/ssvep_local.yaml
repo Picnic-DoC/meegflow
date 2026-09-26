@@ -40,29 +40,6 @@ pipeline:
     baseline: [null, 0.0]
     reject: null
 
-  - name: find_bads_channels_threshold
-    reject:
-      eeg: 1.0e-4
-    n_epochs_bad_ch: 0.5
-    apply_on: ['epochs', 'raw']
-
-  - name: find_bads_channels_variance
-    instance: epochs
-    apply_on: ['epochs', 'raw']
-    zscore_thresh: 4
-    max_iter: 2
-
-  - name: find_bads_channels_high_frequency
-    instance: epochs
-    apply_on: ['epochs', 'raw']
-    zscore_thresh: 4
-    max_iter: 2
-
-  - name: find_bads_epochs_threshold
-    reject:
-      eeg: 1.0e-4
-    n_channels_bad_epoch: 0.1
-
   - name: reference
     instance: epochs
     ref_channels: average

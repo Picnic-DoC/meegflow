@@ -6,16 +6,12 @@ These tests verify that:
 1. ``find_flat_channels`` uses one variance threshold per channel type, so
    MEG channels (variances around 1e-26 T^2) are not all declared flat
 2. A number or a per-type dict can still be given as ``threshold``
-3. The variance and high-frequency detectors run per channel type, so an
-   outlier among magnetometers is not hidden by the gradiometers' scale
-4. On EEG-only data the results are the same as before
 """
 
 import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
@@ -24,7 +20,6 @@ from conftest import run_step
 import mne
 from meegflow import MEEGFlowPipeline
 from meegflow.readers import BIDSReader
-from meegflow.steps import adaptive_reject
 
 SCALES = {'mag': 2e-13, 'grad': 5e-12, 'eeg': 2e-5}
 
@@ -49,22 +44,6 @@ def _raw(ch_types, flat=(), near_flat=(), n_times=1000):
         data[names.index(ch)] = rng.randn(n_times) * 1e-17
     info = mne.create_info(names, 100.0, ch_types)
     return mne.io.RawArray(data, info, verbose=False)
-
-
-def _epochs(ch_types, noisy=(), gain=5.0, n_epochs=20, seed=1):
-    """Fixed-length ``mne.Epochs``, the type the epoching steps produce.
-
-    (The detection helpers treat other epochs classes, such as
-    ``EpochsArray``, as continuous data, so tests go through ``mne.Epochs``.)
-    """
-    rng = np.random.RandomState(seed)
-    scale = np.array([SCALES[t] for t in ch_types])[:, None]
-    data = rng.randn(len(ch_types), n_epochs * 100) * scale
-    names = _names(ch_types)
-    for ch in noisy:
-        data[names.index(ch)] *= gain
-    raw = mne.io.RawArray(data, mne.create_info(names, 100.0, ch_types), verbose=False)
-    return mne.make_fixed_length_epochs(raw, duration=1.0, preload=True, verbose=False)
 
 
 def _data(**entries):
@@ -117,42 +96,3 @@ class TestFlatChannelsPerType:
         step = stricter['preprocessing_steps'][-1]
         assert step['bad_channels'] == []
         assert step['threshold'] == {'mag': 1e-36, 'grad': 1e-26}
-
-
-MEG_ONLY = ['mag'] * 40 + ['grad'] * 40
-
-
-class TestZscoreDetectorsPerType:
-    def test_variance_outlier_found_within_its_type(self):
-        epochs = _epochs(MEG_ONLY, noisy=['MAG003'])
-        result = run_step(_pipeline({'datatype': 'meg'}), 'find_bads_channels_variance',
-                          _data(epochs=epochs), {})
-        step = result['preprocessing_steps'][-1]
-        assert 'MAG003' in step['bad_channels']
-        assert step['bad_channels_by_type']['mag'] == ['MAG003']
-        assert 'MAG003' in epochs.info['bads']
-
-    def test_pooled_zscore_would_miss_it(self):
-        # What the step did before: one z-score over both types. The
-        # gradiometers' variances (about 600 times larger) mask the outlier.
-        epochs = _epochs(MEG_ONLY, noisy=['MAG003'])
-        pooled = adaptive_reject.find_bads_channels_variance(epochs, list(range(len(MEG_ONLY))))
-        assert 'MAG003' not in pooled
-
-    def test_high_frequency_runs_per_type(self):
-        result = run_step(_pipeline({'datatype': 'meg'}), 'find_bads_channels_high_frequency',
-                          _data(epochs=_epochs(MEG_ONLY, noisy=['GRAD050'])), {})
-        step = result['preprocessing_steps'][-1]
-        assert set(step['bad_channels_by_type']) == {'mag', 'grad'}
-        assert 'GRAD050' in step['bad_channels']
-
-    @pytest.mark.parametrize('step_name, helper', [
-        ('find_bads_channels_variance', adaptive_reject.find_bads_channels_variance),
-        ('find_bads_channels_high_frequency', adaptive_reject.find_bads_channels_high_frequency),
-    ])
-    def test_eeg_only_matches_single_pass(self, step_name, helper):
-        ch_types = ['eeg'] * 30
-        epochs = _epochs(ch_types, noisy=['EEG004'])
-        expected = sorted(helper(epochs.copy(), list(range(len(ch_types)))))
-        result = run_step(_pipeline(), step_name, _data(epochs=epochs), {})
-        assert sorted(result['preprocessing_steps'][-1]['bad_channels']) == expected
