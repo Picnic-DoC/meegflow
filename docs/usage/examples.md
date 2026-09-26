@@ -4,7 +4,7 @@ MEEGFlow does not ship configuration files: a configuration is a YAML file you w
 
 ## Dropping bad channels
 
-Detects bad channels and bad epochs with the adaptive rejection steps, then drops the bad channels instead of interpolating them.
+Detects flat channels on the continuous recording, then drops them instead of interpolating them. Channels marked bad on `raw` are inherited by the epochs, so `drop_bad_channels` removes them from both instances.
 
 ```yaml
 pipeline:
@@ -25,6 +25,10 @@ pipeline:
     sfreq: 250.0
     npad: auto
 
+  # Detect flat channels on the continuous data, before epoching: the epochs
+  # inherit info['bads'] from raw.
+  - name: find_flat_channels
+
   - name: find_events
     get_events_from: annotations
     shortest_event: 1
@@ -34,29 +38,6 @@ pipeline:
     tmax: 1.2
     baseline: [null, 0.0]
     reject: null
-
-  - name: find_bads_channels_threshold
-    reject:
-      eeg: 1.0e-4
-    n_epochs_bad_ch: 0.5
-    apply_on: ['epochs', 'raw']
-
-  - name: find_bads_channels_variance
-    instance: epochs
-    apply_on: ['epochs', 'raw']
-    zscore_thresh: 4
-    max_iter: 2
-
-  - name: find_bads_channels_high_frequency
-    instance: epochs
-    apply_on: ['epochs', 'raw']
-    zscore_thresh: 4
-    max_iter: 2
-
-  - name: find_bads_epochs_threshold
-    reject:
-      eeg: 1.0e-4
-    n_channels_bad_epoch: 0.1
 
   - name: reference
     instance: 'epochs'
@@ -89,7 +70,7 @@ pipeline:
 
 ## Excluding channels
 
-`excluded_channels` keeps specific channels (here the reference channel, Cz) out of filtering, bad-channel detection and epoch rejection.
+`excluded_channels` keeps specific channels (here the reference channel, Cz) out of filtering and bad-channel detection.
 
 ```yaml
 pipeline:
@@ -115,38 +96,17 @@ pipeline:
   - name: find_events
     shortest_event: 1
 
+  # Find bad channels - excluding Cz from bad channel detection.
+  # Runs on raw, before epoching: the epochs inherit info['bads'].
+  - name: find_flat_channels
+    excluded_channels: ['Cz']  # Don't mark Cz as bad
+
   - name: epoch
     tmin: -0.2
     tmax: 0.8
     baseline: [null, 0.0]
     event_id: null
     reject: null
-
-  # Find bad channels - excluding Cz from bad channel detection
-  - name: find_bads_channels_threshold
-    reject:
-      eeg: 1.0e-4
-    n_epochs_bad_ch: 0.5
-    excluded_channels: ['Cz']  # Don't mark Cz as bad
-
-  - name: find_bads_channels_variance
-    instance: epochs
-    zscore_thresh: 4
-    max_iter: 2
-    excluded_channels: ['Cz']  # Exclude Cz from variance analysis
-
-  - name: find_bads_channels_high_frequency
-    instance: epochs
-    zscore_thresh: 4
-    max_iter: 2
-    excluded_channels: ['Cz']  # Exclude Cz from high-frequency analysis
-
-  # Find bad epochs - excluding Cz from epoch rejection criteria
-  - name: find_bads_epochs_threshold
-    reject:
-      eeg: 1.0e-4
-    n_channels_bad_epoch: 0.1
-    excluded_channels: ['Cz']  # Don't use Cz for epoch rejection
 
   # After bad channel detection, re-reference to average
   - name: reference
@@ -199,6 +159,9 @@ pipeline:
     channels: ['T7', 'T8']  # Example: mark these as bad
     instance: 'raw'
 
+  # Find more bad channels using built-in detection (operates on raw)
+  - name: find_flat_channels  # Built-in step
+
   # Re-reference (built-in step)
   - name: reference
     ref_channels: average
@@ -213,11 +176,6 @@ pipeline:
     tmin: -0.2
     tmax: 0.8
     baseline: [null, 0]
-
-  # Find more bad channels using built-in detection (needs epochs)
-  - name: find_bads_channels_threshold  # Built-in step
-    reject:
-      eeg: 1.0e-4
 
   # Interpolate bad channels, including those marked above (built-in step)
   - name: interpolate_bad_channels
@@ -516,9 +474,6 @@ pipeline:
   - name: epoch
     tmin: -0.2
     tmax: 0.5
-
-  # Rejection thresholds default to 4000 fT (mag) and 4000 fT/cm (grad).
-  - name: find_bads_epochs_threshold
 
   - name: save_clean_instance
     instance: epochs

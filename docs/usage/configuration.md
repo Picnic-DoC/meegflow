@@ -138,9 +138,6 @@ Any string value (in `args`, keyword arguments, or `target`) that starts with `d
 | Step | Key parameters |
 |------|---------------|
 | `find_flat_channels` | `threshold` (a variance: a number for every channel, or a dict per channel type; defaults `mag: 1e-30`, `grad: 1e-26`, `1e-12` for every other type), `picks`, `excluded_channels` |
-| `find_bads_channels_threshold` | `reject` (dict; default from `datatype`), `n_epochs_bad_ch`, `picks`, `apply_on` |
-| `find_bads_channels_variance` | `zscore_thresh`, `max_iter`, `picks`, `instance`, `apply_on` (z-scored per channel type) |
-| `find_bads_channels_high_frequency` | `zscore_thresh`, `max_iter`, `picks`, `instance`, `apply_on` (z-scored per channel type) |
 
 ### Bad channel handling
 
@@ -193,7 +190,6 @@ A complete MEG pipeline is in [Example Configurations](examples.md#meg).
 | `find_events` | `get_events_from` (`'annotations'`\|`'stim_channel'`), `shortest_event`, `event_id`, `stim_channel` |
 | `epoch` | `event_id`, `tmin`, `tmax`, `baseline`, `reject` |
 | `chunk_in_epoch` | `duration` |
-| `find_bads_epochs_threshold` | `reject` (dict), `n_channels_bad_epoch`, `picks` |
 
 ### Output
 

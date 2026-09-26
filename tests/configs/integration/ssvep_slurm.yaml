@@ -1,7 +1,9 @@
 # Integration fixture: ssvep-example-data, Slurm (dask-jobqueue) backend.
 #
-# Pipeline steps copied verbatim from the known-good config at
-# /home/laouen.belloli/Documents/data/ssvep/configs/standard_pipeline.yaml
+# Pipeline steps taken from the known-good config at
+# /home/laouen.belloli/Documents/data/ssvep/configs/standard_pipeline.yaml,
+# minus the find_bads_channels_*/find_bads_epochs_threshold steps, which were
+# removed from MEEGFlow along with the adaptive_reject module.
 # Used by tests/test_execution_integration_real_data.py.
 #
 # Dataset: /home/laouen.belloli/Documents/data/ssvep/ssvep-example-data
